@@ -219,7 +219,13 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
             )}
           </>
         ) : (
-          <div className="space-y-4 animate-fade-in">
+          <form
+            className="space-y-4 animate-fade-in"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleSave();
+            }}
+          >
             <div className="flex gap-4">
               <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)]">
                 {selected.coverUrl && (
@@ -260,8 +266,8 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
             />
 
             <Button
+              type="submit"
               className="w-full"
-              onClick={handleSave}
               disabled={!destination || saving}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -271,7 +277,7 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
                   ? "Añadir a Wishlist"
                   : "Añadir a la estantería"}
             </Button>
-          </div>
+          </form>
         )}
 
         {error && (

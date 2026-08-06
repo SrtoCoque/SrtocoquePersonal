@@ -107,6 +107,13 @@ export function EditBookDialog({
         <DialogTitle>Editar libro</DialogTitle>
       </DialogHeader>
       <DialogBody className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saving && !deleting) void handleSave();
+          }}
+        >
         <div className="flex gap-3">
           <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
             {book.cover_url && (
@@ -241,10 +248,15 @@ export function EditBookDialog({
           </p>
         )}
 
-        <Button className="w-full" onClick={handleSave} disabled={saving || deleting}>
+        <Button
+          type="submit"
+          className="w-full"
+          disabled={saving || deleting}
+        >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Guardar cambios
         </Button>
+        </form>
       </DialogBody>
     </Dialog>
   );

@@ -103,6 +103,13 @@ export function EditGameDialog({
         <DialogTitle>Editar juego</DialogTitle>
       </DialogHeader>
       <DialogBody className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saving && !deleting) void handleSave();
+          }}
+        >
         <div className="flex gap-3">
           <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
             {game.cover_url && (
@@ -221,13 +228,14 @@ export function EditGameDialog({
         )}
 
         <Button
+          type="submit"
           className="w-full"
-          onClick={handleSave}
           disabled={saving || deleting}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Guardar cambios
         </Button>
+        </form>
       </DialogBody>
     </Dialog>
   );

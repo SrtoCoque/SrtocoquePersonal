@@ -211,6 +211,13 @@ export function EditMovieDialog({
         <DialogTitle>Editar película</DialogTitle>
       </DialogHeader>
       <DialogBody className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saving && !deleting && !addingView) void handleSave();
+          }}
+        >
         <div className="flex gap-3">
           <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
             {movie.cover_url && (
@@ -446,13 +453,14 @@ export function EditMovieDialog({
         )}
 
         <Button
+          type="submit"
           className="w-full"
-          onClick={handleSave}
           disabled={saving || deleting || addingView}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Guardar cambios
         </Button>
+        </form>
       </DialogBody>
     </Dialog>
   );

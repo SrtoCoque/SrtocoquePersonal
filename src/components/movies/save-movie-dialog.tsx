@@ -140,6 +140,13 @@ export function SaveMovieDialog({
         <DialogTitle>Guardar película</DialogTitle>
       </DialogHeader>
       <DialogBody className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSave();
+          }}
+        >
         <div className="flex gap-4">
           <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] shadow-md">
             {movie.coverUrl ? (
@@ -208,13 +215,14 @@ export function SaveMovieDialog({
         )}
 
         <Button
+          type="submit"
           className="w-full"
-          onClick={handleSave}
           disabled={!canSave || saving || done}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           {saveLabel}
         </Button>
+        </form>
       </DialogBody>
     </Dialog>
   );
