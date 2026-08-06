@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Mail, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,8 +25,12 @@ function authErrorMessage(error: unknown, isLogin: boolean): string {
   return raw;
 }
 
+/** Tras login, navegación completa para que el middleware vea las cookies (móvil/Safari). */
+function goHomeHard() {
+  window.location.assign("/home");
+}
+
 export function AuthForm({ mode }: { mode: Mode }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,43 +41,60 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   const isLogin = mode === "login";
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     setMessage(null);
     setLoading(true);
 
+    // FormData: en móvil el autofill a menudo no dispara onChange de React
+    const formData = new FormData(e.currentTarget);
+    const emailValue = String(formData.get("email") ?? email).trim();
+    const passwordValue = String(formData.get("password") ?? password);
+
+    if (!emailValue || !passwordValue) {
+      setError("Introduce email y contraseña.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     try {
       if (isLogin) {
-        const { error: authError } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
+        const { data, error: authError } =
+          await supabase.auth.signInWithPassword({
+            email: emailValue,
+            password: passwordValue,
+          });
         if (authError) throw authError;
-        router.push("/home");
-        router.refresh();
-      } else {
-        const { data, error: authError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-        if (authError) throw authError;
-
-        if (data.session) {
-          router.push("/home");
-          router.refresh();
-          return;
+        if (!data.session) {
+          throw new Error(
+            "No se pudo crear la sesión. Prueba de nuevo o usa el Magic Link.",
+          );
         }
-
-        setMessage(
-          "Cuenta creada. Revisa tu correo y confirma el enlace antes de iniciar sesión. Si no te llega nada, en Supabase → Authentication → Providers → Email desactiva «Confirm email».",
-        );
+        // No usar router.push: en móvil las cookies a veces no llegan a tiempo
+        goHomeHard();
+        return;
       }
+
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: emailValue,
+        password: passwordValue,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (authError) throw authError;
+
+      if (data.session) {
+        goHomeHard();
+        return;
+      }
+
+      setMessage(
+        "Cuenta creada. Revisa tu correo y confirma el enlace antes de iniciar sesión. Si no te llega nada, en Supabase → Authentication → Providers → Email desactiva «Confirm email».",
+      );
     } catch (err) {
       setError(authErrorMessage(err, isLogin));
     } finally {
@@ -85,7 +105,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
   async function handleMagicLink() {
     setError(null);
     setMessage(null);
-    if (!email.trim()) {
+    const emailValue = email.trim();
+    if (!emailValue) {
       setError("Introduce tu email para recibir el enlace mágico");
       return;
     }
@@ -93,7 +114,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     const supabase = createClient();
     try {
       const { error: authError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
+        email: emailValue,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -135,8 +156,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
           </Label>
           <Input
             id="email"
+            name="email"
             type="email"
+            inputMode="email"
             autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -152,6 +178,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           <div className="relative">
             <Input
               id="password"
+              name="password"
               type={showPassword ? "text" : "password"}
               autoComplete={isLogin ? "current-password" : "new-password"}
               required
@@ -165,7 +192,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-100"
-              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-label={
+                showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+              }
             >
               {showPassword ? (
                 <EyeOff className="h-4 w-4" />
@@ -177,7 +206,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
         </div>
 
         {error && (
-          <p className="rounded-lg border border-red-400/20 bg-red-950/50 px-3 py-2 text-sm text-red-300">
+          <p
+            role="alert"
+            className="rounded-lg border border-red-400/20 bg-red-950/50 px-3 py-2 text-sm text-red-300"
+          >
             {error}
           </p>
         )}

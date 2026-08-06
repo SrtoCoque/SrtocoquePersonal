@@ -38,14 +38,68 @@ type Props = {
   finishDate: string;
   onFinishDateChange: (date: string) => void;
   /** Páginas leídas al guardar como «Leyendo». */
-  pagesRead?: number;
-  onPagesReadChange?: (pages: number) => void;
+  pagesRead?: number | "";
+  onPagesReadChange?: (pages: number | "") => void;
   /** Total de Google Books (si existe). */
   totalPages?: number | null;
   /** Total opcional si Google no trae páginas. */
   manualTotalPages?: number | "";
   onManualTotalPagesChange?: (pages: number | "") => void;
 };
+
+/** Input numérico: al hacer focus, un 0 se limpia para poder escribir. */
+function ClearableNumberInput({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  placeholder,
+  disabled,
+  className,
+  blurFallback = 0,
+}: {
+  id: string;
+  value: number | "";
+  onChange: (value: number | "") => void;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  /** Valor al salir del campo si está vacío. */
+  blurFallback?: number | "";
+}) {
+  return (
+    <Input
+      id={id}
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={className}
+      value={value}
+      onFocus={() => {
+        if (value === 0) onChange("");
+      }}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === "") {
+          onChange("");
+          return;
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        onChange(n);
+      }}
+      onBlur={() => {
+        if (value === "") onChange(blurFallback);
+      }}
+    />
+  );
+}
 
 export function BookDestinationFields({
   destination,
@@ -71,7 +125,7 @@ export function BookDestinationFields({
         ? Number(manualTotalPages)
         : null;
   const knownTotal = apiTotal ?? manual;
-  const needsManualTotal = !apiTotal && Boolean(onManualTotalPagesChange);
+  const canEditTotal = !apiTotal && Boolean(onManualTotalPagesChange);
 
   return (
     <div className="space-y-4">
@@ -162,45 +216,69 @@ export function BookDestinationFields({
             ))}
           </div>
 
-          {needsManualTotal ? (
+          {shelfStatus === "reading" && onPagesReadChange ? (
             <div className="space-y-2 animate-fade-in">
-              <Label htmlFor="total-pages-save">
-                Total de páginas{" "}
-                <span className="font-normal text-[var(--muted)]">
-                  (opcional)
-                </span>
-              </Label>
-              <Input
-                id="total-pages-save"
-                type="number"
-                min={1}
-                value={manualTotalPages}
-                onChange={(e) =>
-                  onManualTotalPagesChange?.(
-                    e.target.value === "" ? "" : Number(e.target.value),
-                  )
-                }
-                placeholder="Si lo sabes, indícalo"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pages-read-save">Página actual</Label>
+                  <ClearableNumberInput
+                    id="pages-read-save"
+                    min={0}
+                    max={knownTotal ?? undefined}
+                    value={pagesRead}
+                    onChange={onPagesReadChange}
+                    placeholder="—"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="total-pages-save">
+                    Total{" "}
+                    {canEditTotal ? (
+                      <span className="font-normal text-[var(--muted)]">
+                        (opc.)
+                      </span>
+                    ) : null}
+                  </Label>
+                  {apiTotal ? (
+                    <Input
+                      id="total-pages-save"
+                      type="number"
+                      value={apiTotal}
+                      disabled
+                      className="opacity-80"
+                    />
+                  ) : (
+                    <ClearableNumberInput
+                      id="total-pages-save"
+                      min={1}
+                      value={manualTotalPages === 0 ? "" : manualTotalPages}
+                      onChange={(v) =>
+                        onManualTotalPagesChange?.(v === 0 ? "" : v)
+                      }
+                      placeholder="—"
+                      blurFallback=""
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           ) : null}
 
-          {shelfStatus === "reading" && onPagesReadChange ? (
+          {shelfStatus !== "reading" && canEditTotal ? (
             <div className="space-y-2 animate-fade-in">
-              <Label htmlFor="pages-read-save">
-                ¿Por qué página vas?
-                {knownTotal ? ` / ${knownTotal}` : ""}
+              <Label htmlFor="total-pages-owned">
+                Total de páginas{" "}
+                <span className="font-normal text-[var(--muted)]">(opcional)</span>
               </Label>
-              <Input
-                id="pages-read-save"
-                type="number"
-                min={0}
-                max={knownTotal ?? undefined}
-                value={pagesRead}
-                onChange={(e) =>
-                  onPagesReadChange(Math.max(0, Number(e.target.value) || 0))
+              <ClearableNumberInput
+                id="total-pages-owned"
+                min={1}
+                value={manualTotalPages === 0 ? "" : manualTotalPages}
+                onChange={(v) =>
+                  onManualTotalPagesChange?.(v === 0 ? "" : v)
                 }
-                placeholder="0"
+                placeholder="Si lo sabes, indícalo"
+                blurFallback=""
               />
             </div>
           ) : null}

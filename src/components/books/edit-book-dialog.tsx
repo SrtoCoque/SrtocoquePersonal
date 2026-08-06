@@ -30,6 +30,52 @@ function knownTotalPages(value: number | null | undefined): number | null {
   return value;
 }
 
+function ClearableNumberInput({
+  id,
+  value,
+  onChange,
+  min,
+  max,
+  placeholder,
+  blurFallback = 0,
+}: {
+  id: string;
+  value: number | "";
+  onChange: (value: number | "") => void;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  blurFallback?: number | "";
+}) {
+  return (
+    <Input
+      id={id}
+      type="number"
+      inputMode="numeric"
+      min={min}
+      max={max}
+      placeholder={placeholder}
+      value={value}
+      onFocus={() => {
+        if (value === 0) onChange("");
+      }}
+      onChange={(e) => {
+        const raw = e.target.value;
+        if (raw === "") {
+          onChange("");
+          return;
+        }
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        onChange(n);
+      }}
+      onBlur={() => {
+        if (value === "") onChange(blurFallback);
+      }}
+    />
+  );
+}
+
 export function EditBookDialog({
   book,
   open,
@@ -38,7 +84,7 @@ export function EditBookDialog({
   onDeleted,
 }: Props) {
   const [status, setStatus] = useState<BookStatus>("wishlist");
-  const [pagesRead, setPagesRead] = useState(0);
+  const [pagesRead, setPagesRead] = useState<number | "">(0);
   const [totalPages, setTotalPages] = useState<number | "">("");
   const [finishDate, setFinishDate] = useState("");
   const [rating, setRating] = useState<number | "">("");
@@ -224,48 +270,56 @@ export function EditBookDialog({
             </div>
           </div>
 
-          {(status === "reading" ||
-            status === "owned" ||
-            status === "read") && (
+          {status === "reading" ? (
             <div className="space-y-2">
-              <Label htmlFor="total-pages">Total de páginas</Label>
-              <Input
-                id="total-pages"
-                type="number"
-                min={1}
-                value={totalPages}
-                onChange={(e) =>
-                  setTotalPages(
-                    e.target.value === "" ? "" : Number(e.target.value),
-                  )
-                }
-                placeholder="Si Google Books no lo traía, ponlo aquí"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pages-read">Página actual</Label>
+                  <ClearableNumberInput
+                    id="pages-read"
+                    min={0}
+                    max={totalKnown ?? undefined}
+                    value={pagesRead}
+                    onChange={setPagesRead}
+                    placeholder="—"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="total-pages">
+                    Total{" "}
+                    {!totalKnown ? (
+                      <span className="font-normal text-[var(--muted)]">
+                        (opc.)
+                      </span>
+                    ) : null}
+                  </Label>
+                  <ClearableNumberInput
+                    id="total-pages"
+                    min={1}
+                    value={totalPages === 0 ? "" : totalPages}
+                    onChange={(v) => setTotalPages(v === 0 ? "" : v)}
+                    placeholder="—"
+                    blurFallback=""
+                  />
+                </div>
+              </div>
             </div>
-          )}
-
-          {status === "reading" && (
+          ) : status === "owned" || status === "read" ? (
             <div className="space-y-2">
-              <Label htmlFor="pages-read">
-                Páginas leídas
-                {totalKnown ? ` / ${totalKnown}` : ""}
+              <Label htmlFor="total-pages">
+                Total de páginas{" "}
+                <span className="font-normal text-[var(--muted)]">(opcional)</span>
               </Label>
-              <Input
-                id="pages-read"
-                type="number"
-                min={0}
-                max={totalKnown ?? undefined}
-                value={pagesRead}
-                onChange={(e) => setPagesRead(Number(e.target.value))}
+              <ClearableNumberInput
+                id="total-pages"
+                min={1}
+                value={totalPages === 0 ? "" : totalPages}
+                onChange={(v) => setTotalPages(v === 0 ? "" : v)}
+                placeholder="Si no lo tenía, ponlo aquí"
+                blurFallback=""
               />
-              {!totalKnown ? (
-                <p className="text-xs text-[var(--muted)]">
-                  Sin total de páginas no se calcula el %; puedes indicar el
-                  total arriba.
-                </p>
-              ) : null}
             </div>
-          )}
+          ) : null}
 
           {status === "read" && (
             <>

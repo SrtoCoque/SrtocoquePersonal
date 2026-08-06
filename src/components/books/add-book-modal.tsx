@@ -38,7 +38,7 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
   const [finishDate, setFinishDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
-  const [pagesRead, setPagesRead] = useState(0);
+  const [pagesRead, setPagesRead] = useState<number | "">(0);
   const [manualTotalPages, setManualTotalPages] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
     if (status === "read" && knownTotal) {
       resolvedPages = knownTotal;
     } else if (status === "reading") {
-      resolvedPages = Math.max(0, pagesRead);
+      resolvedPages = Math.max(0, Number(pagesRead) || 0);
       if (knownTotal != null && resolvedPages > knownTotal) {
         setSaving(false);
         setError(
