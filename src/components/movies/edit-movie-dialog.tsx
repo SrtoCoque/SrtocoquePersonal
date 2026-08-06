@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Home, Loader2, Plus, Popcorn, Trash2 } from "lucide-react";
+import { ChevronDown, Home, Loader2, Plus, Popcorn, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogBody,
@@ -54,6 +54,7 @@ export function EditMovieDialog({
   const [addingView, setAddingView] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (!movie || !open) return;
@@ -63,6 +64,7 @@ export function EditMovieDialog({
     setViewedAt(new Date().toISOString().slice(0, 10));
     setLocation("home");
     setError(null);
+    setHistoryOpen(false);
 
     async function loadViewings() {
       const supabase = createClient();
@@ -400,21 +402,38 @@ export function EditMovieDialog({
             </div>
 
             {viewings.length > 0 && (
-              <div className="space-y-2">
-                <Label>Historial de visionados</Label>
-                <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
-                  {viewings.map((v) => (
-                    <li
-                      key={v.id}
-                      className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2"
-                    >
-                      <span>{v.viewed_at}</span>
-                      <span className="text-[var(--muted)]">
-                        {MOVIE_WATCH_LOCATION_LABELS[v.location]}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+              <div className="rounded-xl border border-[var(--border)] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen((o) => !o)}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-2)]"
+                  aria-expanded={historyOpen}
+                >
+                  <span className="text-sm font-medium">
+                    Historial de visionados ({viewings.length})
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-[var(--muted)] transition-transform",
+                      historyOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+                {historyOpen && (
+                  <ul className="max-h-40 space-y-1 overflow-y-auto border-t border-[var(--border)] px-3 py-2 text-sm">
+                    {viewings.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex items-center justify-between rounded-lg bg-[var(--surface-2)]/50 px-3 py-2"
+                      >
+                        <span>{v.viewed_at}</span>
+                        <span className="text-[var(--muted)]">
+                          {MOVIE_WATCH_LOCATION_LABELS[v.location]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </>
