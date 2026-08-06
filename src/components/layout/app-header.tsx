@@ -73,6 +73,8 @@ export function AppHeader({
             <button
               type="button"
               onClick={() => setSearchOpen((o) => !o)}
+              aria-label="Buscar"
+              aria-expanded={searchOpen}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
                 searchOpen || pathname.startsWith("/search")
@@ -81,7 +83,7 @@ export function AppHeader({
               )}
             >
               <Search className="h-4 w-4" />
-              <span className="hidden sm:inline">Buscar</span>
+              <span>Buscar</span>
             </button>
             <Link
               href="/stats"
