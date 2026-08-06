@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -14,13 +15,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { InlineHeaderSearch } from "@/components/layout/inline-header-search";
 import { cn } from "@/lib/utils";
-
-const NAV = [
-  { href: "/games", label: "Biblioteca", icon: Library },
-  { href: "/games/search", label: "Buscar", icon: Search },
-  { href: "/games/stats", label: "Estadísticas", icon: BarChart3 },
-];
 
 export function GamesHeader({
   email,
@@ -31,6 +27,7 @@ export function GamesHeader({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
 
   async function signOut() {
     const supabase = createClient();
@@ -61,27 +58,43 @@ export function GamesHeader({
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Inicio</span>
             </Link>
-            {NAV.map(({ href, label, icon: Icon }) => {
-              const active =
-                href === "/games"
-                  ? pathname === "/games"
-                  : pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-                    active
-                      ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
-                      : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{label}</span>
-                </Link>
-              );
-            })}
+            <Link
+              href="/games"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                pathname === "/games"
+                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+              )}
+            >
+              <Library className="h-4 w-4" />
+              <span className="hidden sm:inline">Biblioteca</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setSearchOpen((o) => !o)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                searchOpen || pathname.startsWith("/games/search")
+                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+              )}
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline">Buscar</span>
+            </button>
+            <Link
+              href="/games/stats"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                pathname.startsWith("/games/stats")
+                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Estadísticas</span>
+            </Link>
           </nav>
         </div>
 
@@ -108,6 +121,13 @@ export function GamesHeader({
           </Button>
         </div>
       </div>
+
+      <InlineHeaderSearch
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        searchPath="/games/search"
+        placeholder="Título del juego..."
+      />
     </header>
   );
 }
