@@ -50,6 +50,51 @@ function formatHours(minutes: number): string {
   return Math.round(h).toLocaleString("es-ES");
 }
 
+function formatUnit(n: number, singular: string, plural: string): string | null {
+  if (n <= 0) return null;
+  return `${n} ${n === 1 ? singular : plural}`;
+}
+
+/** Une partes en español: "1 año 3 meses y 5 días". */
+function joinSpanish(parts: (string | null)[]): string {
+  const list = parts.filter((p): p is string => Boolean(p));
+  if (list.length === 0) return "";
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} y ${list[1]}`;
+  return `${list.slice(0, -1).join(" ")} y ${list[list.length - 1]}`;
+}
+
+/**
+ * Equivalente en días / meses / años (24 h = 1 día, 30 días = 1 mes).
+ * Ej: "12 días", "1 mes y 1 día", "1 año 3 meses y 5 días".
+ */
+function formatWatchSpan(minutes: number): string | null {
+  if (minutes <= 0) return null;
+  const totalDays = Math.floor(minutes / (60 * 24));
+  if (totalDays < 1) return "menos de 1 día";
+  if (totalDays <= 30) {
+    return formatUnit(totalDays, "día", "días");
+  }
+
+  const totalMonths = Math.floor(totalDays / 30);
+  const remDays = totalDays % 30;
+
+  if (totalMonths < 12) {
+    return joinSpanish([
+      formatUnit(totalMonths, "mes", "meses"),
+      formatUnit(remDays, "día", "días"),
+    ]);
+  }
+
+  const years = Math.floor(totalMonths / 12);
+  const remMonths = totalMonths % 12;
+  return joinSpanish([
+    formatUnit(years, "año", "años"),
+    formatUnit(remMonths, "mes", "meses"),
+    formatUnit(remDays, "día", "días"),
+  ]);
+}
+
 function hoursFromViewings(
   list: UserMovieViewing[],
   movies: UserMovie[],
@@ -149,6 +194,7 @@ export function MoviesStatsDashboard({
       chartData,
       minutes,
       hoursLabel: formatHours(minutes),
+      hoursSpan: formatWatchSpan(minutes),
     };
   }, [movies, viewings, period, years]);
 
@@ -202,6 +248,7 @@ export function MoviesStatsDashboard({
                 icon={Clock}
                 label="Horas totales"
                 value={stats.hoursLabel}
+                aside={stats.hoursSpan}
               />
               <InlineStatCard
                 icon={Home}
@@ -322,10 +369,13 @@ function StatCard({
   icon: Icon,
   label,
   value,
+  aside,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string | number;
+  /** Texto más pequeño al lado del valor (p. ej. equivalente en días). */
+  aside?: string | null;
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-transform hover:-translate-y-0.5">
@@ -333,8 +383,13 @@ function StatCard({
         <Icon className="h-4 w-4" />
       </div>
       <p className="text-sm text-[var(--muted)]">{label}</p>
-      <p className="mt-1 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
-        {value}
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
+          {value}
+        </span>
+        {aside ? (
+          <span className="text-sm text-[var(--muted)]">{aside}</span>
+        ) : null}
       </p>
     </div>
   );

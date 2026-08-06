@@ -7,6 +7,7 @@ import { AddMovieModal } from "@/components/movies/add-movie-modal";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { MovieCard } from "@/components/movies/movie-card";
 import { MovieSection } from "@/components/movies/movie-section";
+import { RecommendedMoviesSection } from "@/components/movies/recommended-movies-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { UserMovie } from "@/lib/types";
@@ -152,18 +153,32 @@ export function MoviesLibraryView({
           </div>
         ) : filter === "all" ? (
           movies.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50 px-6 py-16 text-center">
-              <Clapperboard className="mb-3 h-10 w-10 text-[var(--muted)] opacity-50" />
-              <p className="font-[family-name:var(--font-display)] text-lg font-medium">
-                Tu biblioteca de películas está vacía
-              </p>
-              <Button className="mt-5" onClick={() => setAddOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Añadir película
-              </Button>
+            <div className="space-y-10">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50 px-6 py-16 text-center">
+                <Clapperboard className="mb-3 h-10 w-10 text-[var(--muted)] opacity-50" />
+                <p className="font-[family-name:var(--font-display)] text-lg font-medium">
+                  Tu biblioteca de películas está vacía
+                </p>
+                <Button className="mt-5" onClick={() => setAddOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Añadir película
+                </Button>
+              </div>
+              <RecommendedMoviesSection
+                userId={userId}
+                movies={movies}
+                onLibraryChange={loadMovies}
+                limit={8}
+              />
             </div>
           ) : (
             <div className="space-y-10">
+              <RecommendedMoviesSection
+                userId={userId}
+                movies={movies}
+                onLibraryChange={loadMovies}
+                limit={8}
+              />
               {inTheatersMovies.length > 0 && (
                 <MovieSection
                   title="En el cine"

@@ -380,3 +380,140 @@ export async function searchTmdbMovies(
 
   return enriched;
 }
+
+type TmdbGenreListResponse = {
+  genres?: { id: number; name: string }[];
+};
+
+let genreNameToIdCache: Map<string, number> | null = null;
+let genreIdToNameCache: Map<number, string> | null = null;
+
+function normalizeGenreKey(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim();
+}
+
+async function loadGenreMaps(
+  apiKey: string,
+): Promise<{ byName: Map<string, number>; byId: Map<number, string> }> {
+  if (genreNameToIdCache && genreIdToNameCache) {
+    return { byName: genreNameToIdCache, byId: genreIdToNameCache };
+  }
+
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    language: TMDB_LANG,
+  });
+  const data = await fetchTmdb<TmdbGenreListResponse>(
+    `https://api.themoviedb.org/3/genre/movie/list?${params.toString()}`,
+  );
+
+  const byName = new Map<string, number>();
+  const byId = new Map<number, string>();
+  for (const g of data.genres ?? []) {
+    if (g.name && g.id) {
+      byName.set(normalizeGenreKey(g.name), g.id);
+      byId.set(g.id, g.name);
+    }
+  }
+  genreNameToIdCache = byName;
+  genreIdToNameCache = byId;
+  return { byName, byId };
+}
+
+async function resolveGenreIds(
+  genreNames: string[],
+  apiKey: string,
+): Promise<number[]> {
+  if (genreNames.length === 0) return [];
+  const { byName } = await loadGenreMaps(apiKey);
+  const ids: number[] = [];
+  for (const name of genreNames) {
+    const id = byName.get(normalizeGenreKey(name));
+    if (id != null && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Películas bien valoradas según géneros preferidos (OR).
+ * Excluye IDs ya en biblioteca. Sin géneros → popular bien puntuado.
+ */
+export async function discoverRecommendedMovies({
+  genreNames = [],
+  excludeIds = [],
+  limit = 16,
+}: {
+  genreNames?: string[];
+  excludeIds?: number[];
+  limit?: number;
+}): Promise<TmdbMovieResult[]> {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) throw new Error("Falta TMDB_API_KEY");
+
+  const exclude = new Set(excludeIds.filter((id) => Number.isFinite(id)));
+  const genreIds = await resolveGenreIds(genreNames, apiKey);
+  const { byId } = await loadGenreMaps(apiKey);
+  const target = Math.min(40, Math.max(1, limit));
+  const collected: TmdbMovie[] = [];
+  const seen = new Set<number>();
+
+  for (let page = 1; page <= 3 && collected.length < target * 2; page++) {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      language: TMDB_LANG,
+      include_adult: "false",
+      sort_by: "vote_average.desc",
+      "vote_average.gte": "7",
+      "vote_count.gte": "200",
+      page: String(page),
+    });
+    if (genreIds.length > 0) {
+      params.set("with_genres", genreIds.join("|"));
+    }
+
+    const data = await fetchTmdb<TmdbSearchResponse>(
+      `https://api.themoviedb.org/3/discover/movie?${params.toString()}`,
+    );
+
+    for (const item of data.results ?? []) {
+      if (!item.id || exclude.has(item.id) || seen.has(item.id)) continue;
+      seen.add(item.id);
+      collected.push(item);
+      if (collected.length >= target * 2) break;
+    }
+
+    if ((data.results ?? []).length === 0) break;
+  }
+
+  const slice = collected.slice(0, target);
+  const enriched = await Promise.all(
+    slice.map(async (item) => {
+      const base = mapSearchMovie(item);
+      const { _score: _, ...movie } = base;
+      movie.genres = (item.genre_ids ?? [])
+        .map((id) => byId.get(id) ?? null)
+        .filter((n): n is string => Boolean(n));
+
+      try {
+        const details = await getTmdbMovieDetails(item.id);
+        return {
+          ...movie,
+          ...details,
+          coverUrl: details.coverUrl ?? movie.coverUrl,
+          title: details.title || movie.title,
+          genres:
+            details.genres.length > 0 ? details.genres : movie.genres,
+          voteAverage: details.voteAverage ?? movie.voteAverage,
+        };
+      } catch {
+        return movie;
+      }
+    }),
+  );
+
+  return enriched;
+}

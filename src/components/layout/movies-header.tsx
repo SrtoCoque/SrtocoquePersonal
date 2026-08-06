@@ -11,6 +11,7 @@ import {
   LogOut,
   Plus,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,18 @@ export function MoviesHeader({
             >
               <Library className="h-4 w-4" />
               <span className="hidden sm:inline">Biblioteca</span>
+            </Link>
+            <Link
+              href="/movies/recommended"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                pathname.startsWith("/movies/recommended")
+                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+              )}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Recomendados</span>
             </Link>
             <button
               type="button"
