@@ -104,7 +104,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <form
         onSubmit={handleSubmit}
-        className="auth-shop-panel space-y-4 rounded-2xl border border-white/15 bg-slate-950/55 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        className="auth-shop-panel space-y-4 rounded-2xl border border-white/20 bg-slate-950/80 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl transition-[background-color,backdrop-filter,border-color,box-shadow] duration-300 ease-out focus-within:border-white/30 focus-within:bg-slate-950/95 focus-within:shadow-[0_24px_70px_rgba(0,0,0,0.65)] focus-within:backdrop-blur-2xl"
       >
         <div className="space-y-2">
           <Label htmlFor="email" className="text-slate-200">
