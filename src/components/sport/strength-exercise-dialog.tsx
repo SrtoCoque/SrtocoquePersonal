@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Dumbbell, Loader2, Plus, Trash2 } from "lucide-react";
 import {
@@ -64,6 +64,19 @@ function lastHint(set: StrengthSet | undefined): string | null {
   return null;
 }
 
+function serializeDraftSets(sets: DraftSet[]): string {
+  return JSON.stringify(
+    sets.map((s) => ({
+      weight: s.weight.trim(),
+      reps: s.reps.trim(),
+    })),
+  );
+}
+
+function hasTypedSets(sets: DraftSet[]): boolean {
+  return sets.some((s) => s.weight.trim() !== "" || s.reps.trim() !== "");
+}
+
 export type ExistingStrengthSession = {
   id: string;
   performed_at: string;
@@ -103,25 +116,47 @@ export function StrengthExerciseDialog({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initialSetsRef = useRef<string>("");
 
   useEffect(() => {
     if (!open || !exercise) return;
+    let nextSets: DraftSet[];
     if (existingSession) {
       setCustomTitle(
         existingSession.exercise_title?.trim() || exercise.title,
       );
       setDate(existingSession.performed_at.slice(0, 10));
-      setSets(draftFromSets(existingSession.sets));
+      nextSets = draftFromSets(existingSession.sets);
+      setSets(nextSets);
       setNotes(existingSession.notes ?? "");
     } else {
       setCustomTitle(exercise.isNewLibre ? "" : exercise.title);
       setDate(new Date().toISOString().slice(0, 10));
-      setSets(draftRowsForLast(exercise.lastSets));
+      nextSets = draftRowsForLast(exercise.lastSets);
+      setSets(nextSets);
       setNotes("");
     }
+    initialSetsRef.current = serializeDraftSets(nextSets);
     setError(null);
     setSaving(false);
   }, [open, exercise, existingSession]);
+
+  function hasUnsavedSets(): boolean {
+    if (isEdit) {
+      return serializeDraftSets(sets) !== initialSetsRef.current;
+    }
+    return hasTypedSets(sets);
+  }
+
+  function requestClose() {
+    if (hasUnsavedSets()) {
+      const ok = window.confirm(
+        "Tienes series escritas sin guardar.\n\n¿Seguro que quieres cerrar?",
+      );
+      if (!ok) return;
+    }
+    onOpenChange(false);
+  }
 
   function updateSet(index: number, patch: Partial<DraftSet>) {
     setSets((prev) =>
@@ -229,8 +264,14 @@ export function StrengthExerciseDialog({
   const exerciseImgs = exercise ? getExerciseImages(exercise) : [];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogHeader onClose={() => onOpenChange(false)}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) requestClose();
+        else onOpenChange(true);
+      }}
+    >
+      <DialogHeader onClose={requestClose}>
         <DialogTitle className="pr-2 leading-snug">{dialogTitle}</DialogTitle>
       </DialogHeader>
 
