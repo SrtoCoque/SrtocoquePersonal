@@ -1,0 +1,297 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Loader2, Search } from "lucide-react";
+import {
+  Dialog,
+  DialogBody,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  GameDestinationFields,
+  gameDestinationToStatus,
+  type GameDestination,
+} from "@/components/games/game-destination-fields";
+import { createClient } from "@/lib/supabase/client";
+import type { GameShelfStatus, RawgGameResult } from "@/lib/types";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: string;
+  onAdded: () => void;
+};
+
+export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<RawgGameResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<RawgGameResult | null>(null);
+  const [destination, setDestination] = useState<GameDestination | null>(null);
+  const [shelfStatus, setShelfStatus] = useState<GameShelfStatus>("owned");
+  const [finishDate, setFinishDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reset = useCallback(() => {
+    setQuery("");
+    setResults([]);
+    setSelected(null);
+    setDestination(null);
+    setShelfStatus("owned");
+    setFinishDate(new Date().toISOString().slice(0, 10));
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    if (!open) reset();
+  }, [open, reset]);
+
+  useEffect(() => {
+    if (!open || selected) return;
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/games/search?q=${encodeURIComponent(q)}&limit=6`,
+          { signal: controller.signal },
+        );
+        const data = (await res.json()) as {
+          results?: RawgGameResult[];
+          error?: string;
+        };
+        if (!res.ok) throw new Error(data.error ?? "Error al buscar");
+        setResults(data.results ?? []);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Error de búsqueda");
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query, open, selected]);
+
+  function goToFullSearch() {
+    const q = query.trim();
+    if (q.length < 2) return;
+    onOpenChange(false);
+    router.push(`/games/search?q=${encodeURIComponent(q)}`);
+  }
+
+  async function handleSave() {
+    if (!selected || !destination) return;
+    setSaving(true);
+    setError(null);
+
+    const status = gameDestinationToStatus(destination, shelfStatus);
+    const supabase = createClient();
+    const { error: insertError } = await supabase.from("user_games").insert({
+      user_id: userId,
+      rawg_id: selected.rawgId,
+      title: selected.title,
+      developers: selected.developers,
+      cover_url: selected.coverUrl,
+      platforms: selected.platforms,
+      released: selected.released,
+      metacritic: selected.metacritic,
+      status,
+      hours_played: 0,
+      playtime_estimate: selected.playtimeEstimate,
+      finish_date: status === "completed" ? finishDate : null,
+    });
+
+    setSaving(false);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+    onOpenChange(false);
+    onAdded();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogHeader onClose={() => onOpenChange(false)}>
+        <DialogTitle>Añadir juego</DialogTitle>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Busca en RAWG o pulsa Buscar / Enter para ver todos
+        </p>
+      </DialogHeader>
+
+      <DialogBody className="space-y-4">
+        {!selected ? (
+          <>
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                goToFullSearch();
+              }}
+            >
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Título del juego..."
+                  className="pl-9"
+                  autoFocus
+                />
+                {searching && (
+                  <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--muted)]" />
+                )}
+              </div>
+              <Button type="submit" disabled={query.trim().length < 2}>
+                Buscar
+              </Button>
+            </form>
+
+            <ul className="max-h-72 space-y-1 overflow-y-auto">
+              {results.map((game) => (
+                <li key={game.rawgId}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelected(game);
+                      setDestination(null);
+                      setShelfStatus("owned");
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[var(--surface-2)]"
+                  >
+                    <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
+                      {game.coverUrl ? (
+                        <Image
+                          src={game.coverUrl}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[10px] text-[var(--muted)]">
+                          N/A
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{game.title}</p>
+                      <p className="truncate text-xs text-[var(--muted)]">
+                        {game.platforms.slice(0, 2).join(", ")}
+                        {game.metacritic ? ` · MC ${game.metacritic}` : ""}
+                      </p>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {query.trim().length >= 2 && (
+              <button
+                type="button"
+                onClick={goToFullSearch}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
+              >
+                Ver todos los resultados
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex gap-4">
+              <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)]">
+                {selected.coverUrl && (
+                  <Image
+                    src={selected.coverUrl}
+                    alt=""
+                    fill
+                    className="object-cover"
+                    sizes="80px"
+                    unoptimized
+                  />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="font-[family-name:var(--font-display)] text-lg font-semibold leading-snug">
+                  {selected.title}
+                </p>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  {selected.platforms.slice(0, 3).join(", ")}
+                </p>
+                <button
+                  type="button"
+                  className="mt-2 text-xs text-[var(--accent)] hover:underline"
+                  onClick={() => setSelected(null)}
+                >
+                  Cambiar juego
+                </button>
+              </div>
+            </div>
+
+            <GameDestinationFields
+              destination={destination}
+              onDestinationChange={setDestination}
+              shelfStatus={shelfStatus}
+              onShelfStatusChange={setShelfStatus}
+              finishDate={finishDate}
+              onFinishDateChange={setFinishDate}
+            />
+
+            <Button
+              className="w-full"
+              onClick={handleSave}
+              disabled={!destination || saving}
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {!destination
+                ? "Elige Wishlist o Estantería"
+                : destination === "wishlist"
+                  ? "Añadir a Wishlist"
+                  : "Añadir a la estantería"}
+            </Button>
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+            {error}
+          </p>
+        )}
+
+        <p className="text-center text-[11px] text-[var(--muted)]">
+          Datos de videojuegos por{" "}
+          <a
+            href="https://rawg.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-[var(--foreground)]"
+          >
+            RAWG
+          </a>
+        </p>
+      </DialogBody>
+    </Dialog>
+  );
+}

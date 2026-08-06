@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
-  BookOpen,
+  Gamepad2,
   Home,
   Library,
   LogOut,
@@ -17,17 +17,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/library", label: "Biblioteca", icon: Library },
-  { href: "/search", label: "Buscar", icon: Search },
-  { href: "/stats", label: "Estadísticas", icon: BarChart3 },
+  { href: "/games", label: "Biblioteca", icon: Library },
+  { href: "/games/search", label: "Buscar", icon: Search },
+  { href: "/games/stats", label: "Estadísticas", icon: BarChart3 },
 ];
 
-export function AppHeader({
+export function GamesHeader({
   email,
-  onAddBook,
+  onAddGame,
 }: {
   email?: string | null;
-  onAddBook?: () => void;
+  onAddGame?: () => void;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -44,13 +44,13 @@ export function AppHeader({
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
         <div className="flex items-center gap-6 min-w-0">
           <Link
-            href="/library"
+            href="/games"
             className="flex items-center gap-2 shrink-0 font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] text-[var(--accent-fg)]">
-              <BookOpen className="h-4 w-4" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
+              <Gamepad2 className="h-4 w-4" />
             </span>
-            <span className="hidden sm:inline">Libros</span>
+            <span className="hidden sm:inline">Videojuegos</span>
           </Link>
 
           <nav className="flex items-center gap-1">
@@ -63,8 +63,8 @@ export function AppHeader({
             </Link>
             {NAV.map(({ href, label, icon: Icon }) => {
               const active =
-                href === "/library"
-                  ? pathname === "/library"
+                href === "/games"
+                  ? pathname === "/games"
                   : pathname.startsWith(href);
               return (
                 <Link
@@ -86,10 +86,10 @@ export function AppHeader({
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          {onAddBook && (
-            <Button size="sm" onClick={onAddBook} className="gap-1.5">
+          {onAddGame && (
+            <Button size="sm" onClick={onAddGame} className="gap-1.5">
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Añadir libro</span>
+              <span className="hidden sm:inline">Añadir juego</span>
             </Button>
           )}
           <ThemeToggle />

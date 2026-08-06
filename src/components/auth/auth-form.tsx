@@ -53,7 +53,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
           password,
         });
         if (authError) throw authError;
-        router.push("/library");
+        router.push("/home");
         router.refresh();
       } else {
         const { data, error: authError } = await supabase.auth.signUp({
@@ -66,7 +66,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         if (authError) throw authError;
 
         if (data.session) {
-          router.push("/library");
+          router.push("/home");
           router.refresh();
           return;
         }
