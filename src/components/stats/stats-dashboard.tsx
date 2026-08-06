@@ -12,6 +12,13 @@ import {
 } from "recharts";
 import { BookCheck, CalendarDays, FileText, Library } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import {
+  StatsYearFilter,
+  collectYearsFromDates,
+  periodLabel,
+  type StatsPeriod,
+  yearFromDate,
+} from "@/components/stats/stats-year-filter";
 import { createClient } from "@/lib/supabase/client";
 import type { UserBook } from "@/lib/types";
 
@@ -39,7 +46,7 @@ export function StatsDashboard({
 }) {
   const [books, setBooks] = useState<UserBook[]>([]);
   const [loading, setLoading] = useState(true);
-  const year = new Date().getFullYear();
+  const [period, setPeriod] = useState<StatsPeriod>("all");
 
   useEffect(() => {
     async function load() {
@@ -54,45 +61,64 @@ export function StatsDashboard({
     load();
   }, [userId]);
 
+  const years = useMemo(
+    () => collectYearsFromDates(books.map((b) => b.read_finish_date)),
+    [books],
+  );
+
   const stats = useMemo(() => {
     const read = books.filter((b) => b.status === "read");
-    const readThisYear = read.filter((b) => {
-      if (!b.read_finish_date) return false;
-      return new Date(b.read_finish_date).getFullYear() === year;
-    });
+    const readInPeriod =
+      period === "all"
+        ? read
+        : read.filter((b) => yearFromDate(b.read_finish_date) === period);
 
-    const monthly = MONTHS.map((label, i) => ({
-      month: label,
-      libros: readThisYear.filter((b) => {
-        const d = b.read_finish_date
-          ? new Date(b.read_finish_date)
-          : null;
-        return d && d.getMonth() === i;
-      }).length,
-    }));
+    const chartData =
+      period === "all"
+        ? years
+            .slice()
+            .reverse()
+            .map((y) => ({
+              label: String(y),
+              libros: read.filter(
+                (b) => yearFromDate(b.read_finish_date) === y,
+              ).length,
+            }))
+        : MONTHS.map((label, i) => ({
+            label,
+            libros: readInPeriod.filter((b) => {
+              const d = b.read_finish_date
+                ? new Date(b.read_finish_date)
+                : null;
+              return d && d.getMonth() === i;
+            }).length,
+          }));
 
-    const pagesFromRead = read.reduce(
+    const pagesFromRead = readInPeriod.reduce(
       (sum, b) => sum + (b.total_pages ?? b.pages_read ?? 0),
       0,
     );
-    const pagesFromReading = books
-      .filter((b) => b.status === "reading")
-      .reduce((sum, b) => sum + (b.pages_read ?? 0), 0);
+    const pagesFromReading =
+      period === "all"
+        ? books
+            .filter((b) => b.status === "reading")
+            .reduce((sum, b) => sum + (b.pages_read ?? 0), 0)
+        : 0;
 
     return {
-      totalRead: read.length,
-      readThisYear: readThisYear.length,
+      totalRead: readInPeriod.length,
       totalPages: pagesFromRead + pagesFromReading,
-      monthly,
+      chartData,
+      libraryTotal: books.length,
     };
-  }, [books, year]);
+  }, [books, period, years]);
 
   return (
     <div className="min-h-screen">
       <AppHeader email={email} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
             Estadísticas
           </h1>
@@ -100,6 +126,12 @@ export function StatsDashboard({
             Resumen de tu actividad lectora
           </p>
         </div>
+
+        <StatsYearFilter
+          period={period}
+          onPeriodChange={setPeriod}
+          years={years}
+        />
 
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -114,13 +146,10 @@ export function StatsDashboard({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
               <StatCard
-                icon={CalendarDays}
-                label={`Leídos en ${year}`}
-                value={stats.readThisYear}
-              />
-              <StatCard
                 icon={BookCheck}
-                label="Leídos en total"
+                label={
+                  period === "all" ? "Leídos en total" : `Leídos en ${period}`
+                }
                 value={stats.totalRead}
               />
               <StatCard
@@ -129,57 +158,70 @@ export function StatsDashboard({
                 value={stats.totalPages.toLocaleString("es-ES")}
               />
               <StatCard
+                icon={CalendarDays}
+                label="Periodo"
+                value={periodLabel(period)}
+              />
+              <StatCard
                 icon={Library}
                 label="En la estantería"
-                value={books.length}
+                value={stats.libraryTotal}
               />
             </div>
 
             <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6 animate-slide-up">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-                Libros leídos por mes · {year}
+                {period === "all"
+                  ? "Libros leídos por año"
+                  : `Libros leídos por mes · ${period}`}
               </h2>
               <p className="mb-6 text-sm text-[var(--muted)]">
-                Basado en la fecha de finalización
+                Basado en la fecha de finalización · {periodLabel(period)}
               </p>
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.monthly}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="var(--border)"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "var(--muted)", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fill: "var(--muted)", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={28}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 12,
-                        color: "var(--foreground)",
-                      }}
-                      cursor={{ fill: "var(--surface-2)" }}
-                    />
-                    <Bar
-                      dataKey="libros"
-                      fill="var(--accent)"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={40}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                {stats.chartData.every((d) => d.libros === 0) ? (
+                  <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+                    No hay lecturas en este periodo
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats.chartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: "var(--muted)", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fill: "var(--muted)", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={28}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 12,
+                          color: "var(--foreground)",
+                        }}
+                        cursor={{ fill: "var(--surface-2)" }}
+                      />
+                      <Bar
+                        dataKey="libros"
+                        fill="var(--accent)"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={40}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </section>
           </>

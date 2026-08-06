@@ -12,6 +12,13 @@ import {
 } from "recharts";
 import { CalendarDays, Clock, Gamepad2, Trophy } from "lucide-react";
 import { GamesHeader } from "@/components/layout/games-header";
+import {
+  StatsYearFilter,
+  collectYearsFromDates,
+  periodLabel,
+  type StatsPeriod,
+  yearFromDate,
+} from "@/components/stats/stats-year-filter";
 import { createClient } from "@/lib/supabase/client";
 import type { UserGame } from "@/lib/types";
 
@@ -39,7 +46,7 @@ export function GamesStatsDashboard({
 }) {
   const [games, setGames] = useState<UserGame[]>([]);
   const [loading, setLoading] = useState(true);
-  const year = new Date().getFullYear();
+  const [period, setPeriod] = useState<StatsPeriod>("all");
 
   useEffect(() => {
     async function load() {
@@ -54,41 +61,56 @@ export function GamesStatsDashboard({
     load();
   }, [userId]);
 
+  const years = useMemo(
+    () => collectYearsFromDates(games.map((g) => g.finish_date)),
+    [games],
+  );
+
   const stats = useMemo(() => {
     const completed = games.filter((g) => g.status === "completed");
-    const completedThisYear = completed.filter((g) => {
-      if (!g.finish_date) return false;
-      return new Date(g.finish_date).getFullYear() === year;
-    });
+    const completedInPeriod =
+      period === "all"
+        ? completed
+        : completed.filter((g) => yearFromDate(g.finish_date) === period);
 
-    const monthly = MONTHS.map((label, i) => ({
-      month: label,
-      juegos: completedThisYear.filter((g) => {
-        const d = g.finish_date ? new Date(g.finish_date) : null;
-        return d && d.getMonth() === i;
-      }).length,
-    }));
+    const chartData =
+      period === "all"
+        ? years
+            .slice()
+            .reverse()
+            .map((y) => ({
+              label: String(y),
+              juegos: completed.filter(
+                (g) => yearFromDate(g.finish_date) === y,
+              ).length,
+            }))
+        : MONTHS.map((label, i) => ({
+            label,
+            juegos: completedInPeriod.filter((g) => {
+              const d = g.finish_date ? new Date(g.finish_date) : null;
+              return d && d.getMonth() === i;
+            }).length,
+          }));
 
-    const hours = games.reduce(
+    const hours = completedInPeriod.reduce(
       (sum, g) => sum + (Number(g.hours_played) || 0),
       0,
     );
 
     return {
-      totalCompleted: completed.length,
-      completedThisYear: completedThisYear.length,
+      totalCompleted: completedInPeriod.length,
       totalHours: hours,
-      monthly,
-      total: games.length,
+      chartData,
+      libraryTotal: games.length,
     };
-  }, [games, year]);
+  }, [games, period, years]);
 
   return (
     <div className="min-h-screen">
       <GamesHeader email={email} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-8">
+        <div className="mb-4">
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
             Estadísticas de juegos
           </h1>
@@ -96,6 +118,12 @@ export function GamesStatsDashboard({
             Resumen de tu actividad gamer
           </p>
         </div>
+
+        <StatsYearFilter
+          period={period}
+          onPeriodChange={setPeriod}
+          years={years}
+        />
 
         {loading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -110,13 +138,12 @@ export function GamesStatsDashboard({
           <>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
               <StatCard
-                icon={CalendarDays}
-                label={`Completados en ${year}`}
-                value={stats.completedThisYear}
-              />
-              <StatCard
                 icon={Trophy}
-                label="Completados en total"
+                label={
+                  period === "all"
+                    ? "Completados en total"
+                    : `Completados en ${period}`
+                }
                 value={stats.totalCompleted}
               />
               <StatCard
@@ -125,57 +152,70 @@ export function GamesStatsDashboard({
                 value={stats.totalHours.toLocaleString("es-ES")}
               />
               <StatCard
+                icon={CalendarDays}
+                label="Periodo"
+                value={periodLabel(period)}
+              />
+              <StatCard
                 icon={Gamepad2}
                 label="En la biblioteca"
-                value={stats.total}
+                value={stats.libraryTotal}
               />
             </div>
 
             <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6 animate-slide-up">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-                Juegos completados por mes · {year}
+                {period === "all"
+                  ? "Juegos completados por año"
+                  : `Juegos completados por mes · ${period}`}
               </h2>
               <p className="mb-6 text-sm text-[var(--muted)]">
-                Basado en la fecha de finalización
+                Basado en la fecha de finalización · {periodLabel(period)}
               </p>
               <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.monthly}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="var(--border)"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "var(--muted)", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fill: "var(--muted)", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={28}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "var(--surface)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 12,
-                        color: "var(--foreground)",
-                      }}
-                      cursor={{ fill: "var(--surface-2)" }}
-                    />
-                    <Bar
-                      dataKey="juegos"
-                      fill="var(--accent)"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={40}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                {stats.chartData.every((d) => d.juegos === 0) ? (
+                  <p className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
+                    No hay juegos completados en este periodo
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats.chartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--border)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: "var(--muted)", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        allowDecimals={false}
+                        tick={{ fill: "var(--muted)", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={28}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 12,
+                          color: "var(--foreground)",
+                        }}
+                        cursor={{ fill: "var(--surface-2)" }}
+                      />
+                      <Bar
+                        dataKey="juegos"
+                        fill="var(--accent)"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={40}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </section>
           </>
