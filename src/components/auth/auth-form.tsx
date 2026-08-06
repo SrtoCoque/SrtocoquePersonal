@@ -98,7 +98,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         <p className="mt-4 text-sm text-slate-300/90">
           {isLogin
             ? "Cruza el umbral hacia tu biblioteca mágica"
-            : "Abre tu cuenta y empieza a llenar los estantes"}
+            : "Abre tu cuenta y empieza a llenar tu historia"}
         </p>
       </div>
 
