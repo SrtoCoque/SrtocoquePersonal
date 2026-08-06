@@ -2,6 +2,8 @@ export type BookStatus = "wishlist" | "owned" | "reading" | "read";
 
 export type GameStatus = "wishlist" | "owned" | "playing" | "completed";
 
+export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -69,6 +71,39 @@ export type RawgGameResult = {
   ratingsCount?: number;
 };
 
+export type UserMovie = {
+  id: string;
+  user_id: string;
+  tmdb_id: number | null;
+  title: string;
+  original_title: string | null;
+  directors: string[];
+  cover_url: string | null;
+  genres: string[];
+  released: string | null;
+  runtime: number | null;
+  vote_average: number | null;
+  status: MovieStatus;
+  minutes_watched: number;
+  finish_date: string | null;
+  rating: number | null;
+  created_at: string;
+};
+
+export type TmdbMovieResult = {
+  tmdbId: number;
+  title: string;
+  originalTitle: string | null;
+  directors: string[];
+  coverUrl: string | null;
+  genres: string[];
+  released: string | null;
+  runtime: number | null;
+  voteAverage: number | null;
+  overview?: string;
+  popularity?: number;
+};
+
 export const STATUS_LABELS: Record<BookStatus, string> = {
   wishlist: "Wishlist",
   owned: "Sin empezar",
@@ -97,10 +132,28 @@ export const GAME_STATUS_HINTS: Record<GameStatus, string> = {
   completed: "Lo tengo · terminado",
 };
 
+export const MOVIE_STATUS_LABELS: Record<MovieStatus, string> = {
+  wishlist: "Wishlist",
+  owned: "Sin empezar",
+  watching: "Viendo",
+  watched: "Vista",
+};
+
+export const MOVIE_STATUS_HINTS: Record<MovieStatus, string> = {
+  wishlist: "La quiero, pero aún no la tengo",
+  owned: "La tengo, sin empezar",
+  watching: "La tengo · viendo ahora",
+  watched: "La tengo · ya vista",
+};
+
 export type ShelfStatus = Extract<BookStatus, "owned" | "reading" | "read">;
 export type GameShelfStatus = Extract<
   GameStatus,
   "owned" | "playing" | "completed"
+>;
+export type MovieShelfStatus = Extract<
+  MovieStatus,
+  "owned" | "watching" | "watched"
 >;
 
 export const SHELF_STATUSES: ShelfStatus[] = ["owned", "reading", "read"];
@@ -109,6 +162,11 @@ export const GAME_SHELF_STATUSES: GameShelfStatus[] = [
   "playing",
   "completed",
 ];
+export const MOVIE_SHELF_STATUSES: MovieShelfStatus[] = [
+  "owned",
+  "watching",
+  "watched",
+];
 
 export function isOnShelf(status: BookStatus): status is ShelfStatus {
   return SHELF_STATUSES.includes(status as ShelfStatus);
@@ -116,4 +174,8 @@ export function isOnShelf(status: BookStatus): status is ShelfStatus {
 
 export function isGameOnShelf(status: GameStatus): status is GameShelfStatus {
   return GAME_SHELF_STATUSES.includes(status as GameShelfStatus);
+}
+
+export function isMovieOnShelf(status: MovieStatus): status is MovieShelfStatus {
+  return MOVIE_SHELF_STATUSES.includes(status as MovieShelfStatus);
 }

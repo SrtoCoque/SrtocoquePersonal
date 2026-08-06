@@ -40,12 +40,12 @@ const SECTIONS = [
     accent: "from-amber-500/10 to-orange-500/5",
   },
   {
-    href: "#",
+    href: "/movies",
     title: "Películas",
-    description: "Próximamente",
+    description: "Wishlist, viendo y vistas",
     icon: Clapperboard,
-    available: false,
-    accent: "from-rose-500/10 to-red-500/5",
+    available: true,
+    accent: "from-rose-500/20 to-red-500/5",
   },
 ] as const;
 
