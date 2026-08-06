@@ -100,7 +100,11 @@ body {
 }
 
 .auth-bg-photo {
-  filter: grayscale(0.82) contrast(1.05) brightness(0.72);
+  background-image: url("/diagon-alley.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: grayscale(0.7) contrast(1.05) brightness(0.85);
   transform: scale(1.02);
 }
 
