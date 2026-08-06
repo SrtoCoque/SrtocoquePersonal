@@ -38,6 +38,8 @@ export function SaveBookDialog({
   const [finishDate, setFinishDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
+  const [pagesRead, setPagesRead] = useState(0);
+  const [manualTotalPages, setManualTotalPages] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -47,6 +49,8 @@ export function SaveBookDialog({
     setDestination(null);
     setShelfStatus("owned");
     setFinishDate(new Date().toISOString().slice(0, 10));
+    setPagesRead(0);
+    setManualTotalPages("");
     setError(null);
     setDone(false);
   }, [open, book?.googleBooksId]);
@@ -57,6 +61,29 @@ export function SaveBookDialog({
     setError(null);
 
     const status = destinationToStatus(destination, shelfStatus);
+    const apiTotal =
+      book.totalPages && book.totalPages > 0 ? book.totalPages : null;
+    const manualTotal =
+      manualTotalPages === ""
+        ? null
+        : Number(manualTotalPages) > 0
+          ? Number(manualTotalPages)
+          : null;
+    const knownTotal = apiTotal ?? manualTotal;
+    let resolvedPages = 0;
+    if (status === "read" && knownTotal) {
+      resolvedPages = knownTotal;
+    } else if (status === "reading") {
+      resolvedPages = Math.max(0, pagesRead);
+      if (knownTotal != null && resolvedPages > knownTotal) {
+        setSaving(false);
+        setError(
+          `Las páginas leídas no pueden superar el total (${knownTotal}).`,
+        );
+        return;
+      }
+    }
+
     const supabase = createClient();
     const { error: insertError } = await supabase.from("user_books").insert({
       user_id: userId,
@@ -65,8 +92,8 @@ export function SaveBookDialog({
       authors: book.authors,
       cover_url: book.coverUrl,
       status,
-      total_pages: book.totalPages,
-      pages_read: status === "read" ? (book.totalPages ?? 0) : 0,
+      total_pages: knownTotal,
+      pages_read: resolvedPages,
       read_finish_date: status === "read" ? finishDate : null,
     });
 
@@ -142,6 +169,11 @@ export function SaveBookDialog({
           onShelfStatusChange={setShelfStatus}
           finishDate={finishDate}
           onFinishDateChange={setFinishDate}
+          pagesRead={pagesRead}
+          onPagesReadChange={setPagesRead}
+          totalPages={book.totalPages}
+          manualTotalPages={manualTotalPages}
+          onManualTotalPagesChange={setManualTotalPages}
         />
 
         {error && (

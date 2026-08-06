@@ -37,6 +37,14 @@ type Props = {
   onShelfStatusChange: (status: ShelfStatus) => void;
   finishDate: string;
   onFinishDateChange: (date: string) => void;
+  /** Páginas leídas al guardar como «Leyendo». */
+  pagesRead?: number;
+  onPagesReadChange?: (pages: number) => void;
+  /** Total de Google Books (si existe). */
+  totalPages?: number | null;
+  /** Total opcional si Google no trae páginas. */
+  manualTotalPages?: number | "";
+  onManualTotalPagesChange?: (pages: number | "") => void;
 };
 
 export function BookDestinationFields({
@@ -46,7 +54,25 @@ export function BookDestinationFields({
   onShelfStatusChange,
   finishDate,
   onFinishDateChange,
+  pagesRead = 0,
+  onPagesReadChange,
+  totalPages = null,
+  manualTotalPages = "",
+  onManualTotalPagesChange,
 }: Props) {
+  const apiTotal =
+    totalPages != null && Number.isFinite(totalPages) && totalPages > 0
+      ? totalPages
+      : null;
+  const manual =
+    manualTotalPages === ""
+      ? null
+      : Number.isFinite(Number(manualTotalPages)) && Number(manualTotalPages) > 0
+        ? Number(manualTotalPages)
+        : null;
+  const knownTotal = apiTotal ?? manual;
+  const needsManualTotal = !apiTotal && Boolean(onManualTotalPagesChange);
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -135,6 +161,49 @@ export function BookDestinationFields({
               </button>
             ))}
           </div>
+
+          {needsManualTotal ? (
+            <div className="space-y-2 animate-fade-in">
+              <Label htmlFor="total-pages-save">
+                Total de páginas{" "}
+                <span className="font-normal text-[var(--muted)]">
+                  (opcional)
+                </span>
+              </Label>
+              <Input
+                id="total-pages-save"
+                type="number"
+                min={1}
+                value={manualTotalPages}
+                onChange={(e) =>
+                  onManualTotalPagesChange?.(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                placeholder="Si lo sabes, indícalo"
+              />
+            </div>
+          ) : null}
+
+          {shelfStatus === "reading" && onPagesReadChange ? (
+            <div className="space-y-2 animate-fade-in">
+              <Label htmlFor="pages-read-save">
+                ¿Por qué página vas?
+                {knownTotal ? ` / ${knownTotal}` : ""}
+              </Label>
+              <Input
+                id="pages-read-save"
+                type="number"
+                min={0}
+                max={knownTotal ?? undefined}
+                value={pagesRead}
+                onChange={(e) =>
+                  onPagesReadChange(Math.max(0, Number(e.target.value) || 0))
+                }
+                placeholder="0"
+              />
+            </div>
+          ) : null}
 
           {shelfStatus === "read" && (
             <div className="space-y-2 animate-fade-in">

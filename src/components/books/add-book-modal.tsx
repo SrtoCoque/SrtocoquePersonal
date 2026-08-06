@@ -38,6 +38,8 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
   const [finishDate, setFinishDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
+  const [pagesRead, setPagesRead] = useState(0);
+  const [manualTotalPages, setManualTotalPages] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +50,8 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
     setDestination(null);
     setShelfStatus("owned");
     setFinishDate(new Date().toISOString().slice(0, 10));
+    setPagesRead(0);
+    setManualTotalPages("");
     setError(null);
   }, []);
 
@@ -107,6 +111,31 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
     setError(null);
 
     const status = destinationToStatus(destination, shelfStatus);
+    const apiTotal =
+      selected.totalPages && selected.totalPages > 0
+        ? selected.totalPages
+        : null;
+    const manualTotal =
+      manualTotalPages === ""
+        ? null
+        : Number(manualTotalPages) > 0
+          ? Number(manualTotalPages)
+          : null;
+    const knownTotal = apiTotal ?? manualTotal;
+    let resolvedPages = 0;
+    if (status === "read" && knownTotal) {
+      resolvedPages = knownTotal;
+    } else if (status === "reading") {
+      resolvedPages = Math.max(0, pagesRead);
+      if (knownTotal != null && resolvedPages > knownTotal) {
+        setSaving(false);
+        setError(
+          `Las páginas leídas no pueden superar el total (${knownTotal}).`,
+        );
+        return;
+      }
+    }
+
     const supabase = createClient();
     const { error: insertError } = await supabase.from("user_books").insert({
       user_id: userId,
@@ -115,8 +144,8 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
       authors: selected.authors,
       cover_url: selected.coverUrl,
       status,
-      total_pages: selected.totalPages,
-      pages_read: status === "read" ? (selected.totalPages ?? 0) : 0,
+      total_pages: knownTotal,
+      pages_read: resolvedPages,
       read_finish_date: status === "read" ? finishDate : null,
     });
 
@@ -177,6 +206,8 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
                       setSelected(book);
                       setDestination(null);
                       setShelfStatus("owned");
+                      setPagesRead(0);
+                      setManualTotalPages("");
                     }}
                     className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[var(--surface-2)]"
                   >
@@ -277,6 +308,11 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
               onShelfStatusChange={setShelfStatus}
               finishDate={finishDate}
               onFinishDateChange={setFinishDate}
+              pagesRead={pagesRead}
+              onPagesReadChange={setPagesRead}
+              totalPages={selected.totalPages}
+              manualTotalPages={manualTotalPages}
+              onManualTotalPagesChange={setManualTotalPages}
             />
 
             <Button

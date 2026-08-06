@@ -25,6 +25,11 @@ type Props = {
   onDeleted: () => void;
 };
 
+function knownTotalPages(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
 export function EditBookDialog({
   book,
   open,
@@ -34,6 +39,7 @@ export function EditBookDialog({
 }: Props) {
   const [status, setStatus] = useState<BookStatus>("wishlist");
   const [pagesRead, setPagesRead] = useState(0);
+  const [totalPages, setTotalPages] = useState<number | "">("");
   const [finishDate, setFinishDate] = useState("");
   const [rating, setRating] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
@@ -44,6 +50,7 @@ export function EditBookDialog({
     if (!book || !open) return;
     setStatus(book.status);
     setPagesRead(book.pages_read);
+    setTotalPages(knownTotalPages(book.total_pages) ?? "");
     setFinishDate(
       book.read_finish_date ?? new Date().toISOString().slice(0, 10),
     );
@@ -56,12 +63,29 @@ export function EditBookDialog({
     setSaving(true);
     setError(null);
 
+    const resolvedTotal =
+      totalPages === "" ? null : knownTotalPages(Number(totalPages));
+    let resolvedPages = Math.max(0, Number(pagesRead) || 0);
+
+    if (resolvedTotal != null && resolvedPages > resolvedTotal) {
+      setSaving(false);
+      setError(
+        `Las páginas leídas (${resolvedPages}) no pueden superar el total (${resolvedTotal}).`,
+      );
+      return;
+    }
+
+    if (status === "read" && resolvedTotal != null) {
+      resolvedPages = resolvedTotal;
+    }
+
     const supabase = createClient();
     const { error: updateError } = await supabase
       .from("user_books")
       .update({
         status,
-        pages_read: pagesRead,
+        total_pages: resolvedTotal,
+        pages_read: resolvedPages,
         read_finish_date: status === "read" ? finishDate || null : null,
         rating: rating === "" ? null : rating,
       })
@@ -101,6 +125,9 @@ export function EditBookDialog({
 
   if (!book) return null;
 
+  const totalKnown =
+    totalPages === "" ? null : knownTotalPages(Number(totalPages));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader onClose={() => onOpenChange(false)}>
@@ -114,148 +141,176 @@ export function EditBookDialog({
             if (!saving && !deleting) void handleSave();
           }}
         >
-        <div className="flex gap-3">
-          <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
-            {book.cover_url && (
-              <Image
-                src={book.cover_url}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-                unoptimized
-              />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-medium leading-snug">{book.title}</p>
-                <p className="text-sm text-[var(--muted)]">
-                  {book.authors.join(", ")}
-                </p>
+          <div className="flex gap-3">
+            <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
+              {book.cover_url && (
+                <Image
+                  src={book.cover_url}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="56px"
+                  unoptimized
+                />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-medium leading-snug">{book.title}</p>
+                  <p className="text-sm text-[var(--muted)]">
+                    {book.authors.join(", ")}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Eliminar libro"
+                  title="Eliminar libro"
+                  onClick={handleDelete}
+                  disabled={saving || deleting}
+                  className="shrink-0 text-[var(--danger)] hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
+                >
+                  {deleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Eliminar libro"
-                title="Eliminar libro"
-                onClick={handleDelete}
-                disabled={saving || deleting}
-                className="shrink-0 text-[var(--danger)] hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-              </Button>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label>¿Dónde está?</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {(Object.keys(STATUS_LABELS) as BookStatus[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => {
-                  setStatus(s);
-                  if (s === "read" && book.total_pages) {
-                    setPagesRead(book.total_pages);
-                  }
-                }}
-                className={cn(
-                  "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  status === s
-                    ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                    : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-                )}
-              >
-                <span
+          <div className="space-y-2">
+            <Label>¿Dónde está?</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(STATUS_LABELS) as BookStatus[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => {
+                    setStatus(s);
+                    if (s === "read" && totalKnown) {
+                      setPagesRead(totalKnown);
+                    }
+                  }}
                   className={cn(
-                    "block text-sm font-medium",
-                    status === s ? "text-[var(--accent)]" : "",
+                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    status === s
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
                   )}
                 >
-                  {STATUS_LABELS[s]}
-                </span>
-                <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
-                  {s === "wishlist"
-                    ? "Lo quiero, no lo tengo"
-                    : s === "owned"
-                      ? "Lo tengo, sin empezar"
-                      : s === "reading"
-                        ? "Lo tengo · leyendo"
-                        : "Lo tengo · terminado"}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {status === "reading" && (
-          <div className="space-y-2">
-            <Label htmlFor="pages-read">
-              Páginas leídas
-              {book.total_pages ? ` / ${book.total_pages}` : ""}
-            </Label>
-            <Input
-              id="pages-read"
-              type="number"
-              min={0}
-              max={book.total_pages ?? undefined}
-              value={pagesRead}
-              onChange={(e) => setPagesRead(Number(e.target.value))}
-            />
-          </div>
-        )}
-
-        {status === "read" && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="finish">Fecha de finalización</Label>
-              <Input
-                id="finish"
-                type="date"
-                value={finishDate}
-                onChange={(e) => setFinishDate(e.target.value)}
-              />
+                  <span
+                    className={cn(
+                      "block text-sm font-medium",
+                      status === s ? "text-[var(--accent)]" : "",
+                    )}
+                  >
+                    {STATUS_LABELS[s]}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-[var(--muted)]">
+                    {s === "wishlist"
+                      ? "Lo quiero, no lo tengo"
+                      : s === "owned"
+                        ? "Lo tengo, sin empezar"
+                        : s === "reading"
+                          ? "Lo tengo · leyendo"
+                          : "Lo tengo · terminado"}
+                  </span>
+                </button>
+              ))}
             </div>
+          </div>
+
+          {(status === "reading" ||
+            status === "owned" ||
+            status === "read") && (
             <div className="space-y-2">
-              <Label htmlFor="rating">Valoración (1–5)</Label>
+              <Label htmlFor="total-pages">Total de páginas</Label>
               <Input
-                id="rating"
+                id="total-pages"
                 type="number"
                 min={1}
-                max={5}
-                value={rating}
+                value={totalPages}
                 onChange={(e) =>
-                  setRating(e.target.value === "" ? "" : Number(e.target.value))
+                  setTotalPages(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
                 }
-                placeholder="Opcional"
+                placeholder="Si Google Books no lo traía, ponlo aquí"
               />
             </div>
-          </>
-        )}
+          )}
 
-        {error && (
-          <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
-            {error}
-          </p>
-        )}
+          {status === "reading" && (
+            <div className="space-y-2">
+              <Label htmlFor="pages-read">
+                Páginas leídas
+                {totalKnown ? ` / ${totalKnown}` : ""}
+              </Label>
+              <Input
+                id="pages-read"
+                type="number"
+                min={0}
+                max={totalKnown ?? undefined}
+                value={pagesRead}
+                onChange={(e) => setPagesRead(Number(e.target.value))}
+              />
+              {!totalKnown ? (
+                <p className="text-xs text-[var(--muted)]">
+                  Sin total de páginas no se calcula el %; puedes indicar el
+                  total arriba.
+                </p>
+              ) : null}
+            </div>
+          )}
 
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={saving || deleting}
-        >
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          Guardar cambios
-        </Button>
+          {status === "read" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="finish">Fecha de finalización</Label>
+                <Input
+                  id="finish"
+                  type="date"
+                  value={finishDate}
+                  onChange={(e) => setFinishDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rating">Valoración (1–5)</Label>
+                <Input
+                  id="rating"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={rating}
+                  onChange={(e) =>
+                    setRating(
+                      e.target.value === "" ? "" : Number(e.target.value),
+                    )
+                  }
+                  placeholder="Opcional"
+                />
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+              {error}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={saving || deleting}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Guardar cambios
+          </Button>
         </form>
       </DialogBody>
     </Dialog>
