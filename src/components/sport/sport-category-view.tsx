@@ -3,10 +3,12 @@
 import { StrengthCategoryView } from "@/components/sport/strength-category-view";
 import type { SportCategorySlug } from "@/lib/sport";
 import {
+  ABDOMINALES_EXERCISES,
   BICEPS_EXERCISES,
   ESPALDA_EXERCISES,
   HOMBROS_EXERCISES,
   PECHO_EXERCISES,
+  PIERNAS_EXERCISES,
   TRICEPS_EXERCISES,
   getSportCategory,
 } from "@/lib/sport";
@@ -14,7 +16,12 @@ import {
 const CATALOGS: Partial<
   Record<
     SportCategorySlug,
-    readonly { slug: string; title: string; image?: string | null }[]
+    readonly {
+      slug: string;
+      title: string;
+      image?: string | null;
+      images?: readonly string[];
+    }[]
   >
 > = {
   pecho: PECHO_EXERCISES,
@@ -22,7 +29,8 @@ const CATALOGS: Partial<
   hombros: HOMBROS_EXERCISES,
   biceps: BICEPS_EXERCISES,
   triceps: TRICEPS_EXERCISES,
-  abdominales: [],
+  piernas: PIERNAS_EXERCISES,
+  abdominales: ABDOMINALES_EXERCISES,
 };
 
 /** Grupos de fuerza (todo menos cardio). */
@@ -32,6 +40,7 @@ const STRENGTH_SLUGS = new Set<SportCategorySlug>([
   "hombros",
   "biceps",
   "triceps",
+  "piernas",
   "abdominales",
 ]);
 

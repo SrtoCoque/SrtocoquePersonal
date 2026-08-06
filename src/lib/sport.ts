@@ -42,9 +42,16 @@ export const SPORT_CATEGORIES = [
     icon: "dumbbell",
   },
   {
+    slug: "piernas",
+    title: "Piernas",
+    description: "Sentadillas, femorales y gemelos",
+    accent: "from-yellow-500/20 to-amber-500/5",
+    icon: "dumbbell",
+  },
+  {
     slug: "abdominales",
     title: "Abdominales",
-    description: "Core y estabilidad",
+    description: "Plancha y core",
     accent: "from-teal-500/20 to-emerald-500/5",
     icon: "activity",
   },
@@ -161,6 +168,15 @@ export const PECHO_EXERCISES = [
     title: "Elevaciones frontales",
     image: "/sport/pecho/elevaciones-frontales.png",
   },
+  {
+    slug: "cable-low-fly",
+    title: "Cable low fly",
+    image: "/sport/pecho/cable-low-fly-1.png",
+    images: [
+      "/sport/pecho/cable-low-fly-1.png",
+      "/sport/pecho/cable-low-fly-2.png",
+    ],
+  },
 ] as const;
 
 export type PechoExerciseSlug = (typeof PECHO_EXERCISES)[number]["slug"];
@@ -185,6 +201,20 @@ export const ESPALDA_EXERCISES = [
     slug: "remo-banco",
     title: "Remo banco",
     image: "/sport/espalda/remo-banco.png",
+  },
+  {
+    slug: "upright-row",
+    title: "Upright row",
+    image: "/sport/espalda/upright-row-1.png",
+    images: [
+      "/sport/espalda/upright-row-1.png",
+      "/sport/espalda/upright-row-2.png",
+    ],
+  },
+  {
+    slug: "apertura-remo-inclinado",
+    title: "Apertura remo inclinado",
+    image: "/sport/espalda/apertura-remo-inclinado.png",
   },
 ] as const;
 
@@ -227,6 +257,21 @@ export const HOMBROS_EXERCISES = [
     title: "Elevación en banco inclinado",
     image: "/sport/hombros/elevacion-banco-inclinado.png",
   },
+  {
+    slug: "pike-push-up",
+    title: "Pike push up",
+    image: "/sport/hombros/pike-push-up.png",
+  },
+  {
+    slug: "shrug",
+    title: "Shrug",
+    image: "/sport/hombros/shrug.png",
+  },
+  {
+    slug: "shrug-banco",
+    title: "Shrug banco",
+    image: "/sport/hombros/shrug-banco.png",
+  },
 ] as const;
 
 export type HombrosExerciseSlug = (typeof HOMBROS_EXERCISES)[number]["slug"];
@@ -247,11 +292,35 @@ export const BICEPS_EXERCISES = [
     title: "Antebrazos",
     image: "/sport/biceps/antebrazos.png",
   },
+  {
+    slug: "dumbbell-incline",
+    title: "Dumbbell incline",
+    image: "/sport/biceps/dumbbell-incline-1.png",
+    images: [
+      "/sport/biceps/dumbbell-incline-1.png",
+      "/sport/biceps/dumbbell-incline-2.png",
+    ],
+  },
+  {
+    slug: "curl-lateral",
+    title: "Curl lateral",
+    image: "/sport/biceps/curl-lateral.png",
+  },
+  {
+    slug: "curl-reverse",
+    title: "Curl reverse",
+    image: "/sport/biceps/curl-reverse.png",
+  },
 ] as const;
 
 export type BicepsExerciseSlug = (typeof BICEPS_EXERCISES)[number]["slug"];
 
 export const TRICEPS_EXERCISES = [
+  {
+    slug: "triceps",
+    title: "Tríceps",
+    image: "/sport/triceps/triceps.png",
+  },
   {
     slug: "curl-plano",
     title: "Curl plano",
@@ -267,9 +336,168 @@ export const TRICEPS_EXERCISES = [
     title: "Patada trasera",
     image: "/sport/triceps/patada-trasera.png",
   },
+  {
+    slug: "flexiones-triceps-cerrado",
+    title: "Flexiones tríceps cerrado",
+    image: "/sport/triceps/flexiones-triceps-cerrado.png",
+  },
+  {
+    slug: "curl-cerrado-plano",
+    title: "Curl cerrado plano",
+    image: "/sport/triceps/curl-cerrado-plano-1.png",
+    images: [
+      "/sport/triceps/curl-cerrado-plano-1.png",
+      "/sport/triceps/curl-cerrado-plano-2.png",
+    ],
+  },
 ] as const;
 
 export type TricepsExerciseSlug = (typeof TRICEPS_EXERCISES)[number]["slug"];
+
+export const PIERNAS_EXERCISES = [
+  {
+    slug: "sentadilla-abierta",
+    title: "Sentadilla abierta",
+    image: "/sport/piernas/sentadilla-abierta.png",
+  },
+  {
+    slug: "sentadilla-cerrada",
+    title: "Sentadilla cerrada",
+    image: "/sport/piernas/sentadilla-cerrada.png",
+  },
+  {
+    slug: "dumbbell-largo",
+    title: "Dumbbell largo",
+    image: "/sport/piernas/dumbbell-largo.png",
+  },
+  {
+    slug: "sentadilla-banco",
+    title: "Sentadilla banco",
+    image: "/sport/piernas/sentadilla-banco.png",
+  },
+  {
+    slug: "femorales",
+    title: "Femorales",
+    image: "/sport/piernas/femorales.png",
+  },
+  {
+    slug: "femoral-banco",
+    title: "Femoral banco",
+    image: "/sport/piernas/femoral-banco.png",
+  },
+  {
+    slug: "gemelos",
+    title: "Gemelos",
+    image: "/sport/piernas/gemelos.png",
+  },
+  {
+    slug: "gemelos-sentado",
+    title: "Gemelos sentado",
+    image: "/sport/piernas/gemelos-sentado.png",
+  },
+  {
+    slug: "hip-thrust",
+    title: "Hip thrust",
+    image: "/sport/piernas/hip-thrust.png",
+  },
+] as const;
+
+export type PiernasExerciseSlug = (typeof PIERNAS_EXERCISES)[number]["slug"];
+
+export const ABDOMINALES_EXERCISES = [
+  {
+    slug: "plancha",
+    title: "Plancha",
+    image: "/sport/abdominales/plancha.png",
+  },
+  {
+    slug: "plancha-lateral",
+    title: "Plancha lateral",
+    image: "/sport/abdominales/plancha-lateral.png",
+  },
+  {
+    slug: "kettlebel-lateral",
+    title: "Kettlebel lateral",
+    image: "/sport/abdominales/kettlebel-lateral.png",
+  },
+  {
+    slug: "bicycle-twisting",
+    title: "Bicycle twisting",
+    image: "/sport/abdominales/bicycle-twisting.png",
+  },
+  {
+    slug: "dumbbell-lateral",
+    title: "Dumbbell lateral",
+    image: "/sport/abdominales/dumbbell-lateral.png",
+  },
+  {
+    slug: "abdominal",
+    title: "Abdominal",
+    image: "/sport/abdominales/abdominal.png",
+  },
+  {
+    slug: "abdominal-lateral",
+    title: "Abdominal lateral",
+    image: "/sport/abdominales/abdominal-lateral.png",
+  },
+  {
+    slug: "abdominal-patada",
+    title: "Abdominal patada",
+    image: "/sport/abdominales/abdominal-patada.png",
+  },
+  {
+    slug: "abdominal-pierna-arriba-lateral",
+    title: "Abdominal pierna arriba lateral",
+    image: "/sport/abdominales/abdominal-pierna-arriba-lateral.png",
+  },
+  {
+    slug: "rodillo",
+    title: "Rodillo",
+    image: "/sport/abdominales/rodillo.png",
+  },
+  {
+    slug: "abdominal-banco",
+    title: "Abdominal banco",
+    image: "/sport/abdominales/abdominal-banco-1.png",
+    images: [
+      "/sport/abdominales/abdominal-banco-1.png",
+      "/sport/abdominales/abdominal-banco-2.png",
+    ],
+  },
+  {
+    slug: "cintura-arriba",
+    title: "Cintura arriba",
+    image: "/sport/abdominales/cintura-arriba.png",
+  },
+  {
+    slug: "manos-y-piernas-arriba",
+    title: "Manos y piernas arriba",
+    image: "/sport/abdominales/manos-y-piernas-arriba.png",
+  },
+  {
+    slug: "cruce-piernas",
+    title: "Cruce piernas",
+    image: "/sport/abdominales/cruce-piernas.png",
+  },
+  {
+    slug: "pierna-arriba-banco",
+    title: "Pierna arriba banco",
+    image: "/sport/abdominales/pierna-arriba-banco.png",
+  },
+  {
+    slug: "salto-mancuerna",
+    title: "Salto mancuerna",
+    image: "/sport/abdominales/salto-mancuerna.png",
+  },
+  {
+    slug: "recto-suelo-de-pie",
+    title: "Recto suelo, de pie",
+    image: "/sport/abdominales/recto-suelo-de-pie.png",
+  },
+] as const;
+
+export type AbdominalesExerciseSlug =
+  (typeof ABDOMINALES_EXERCISES)[number]["slug"];
 
 export function getSportCategory(slug: string) {
   return SPORT_CATEGORIES.find((c) => c.slug === slug) ?? null;
@@ -301,7 +529,21 @@ const ALL_STRENGTH_EXERCISES = [
   ...HOMBROS_EXERCISES,
   ...BICEPS_EXERCISES,
   ...TRICEPS_EXERCISES,
+  ...PIERNAS_EXERCISES,
+  ...ABDOMINALES_EXERCISES,
 ] as const;
+
+/** Imágenes de un ejercicio (una o varias fases). */
+export function getExerciseImages(exercise: {
+  image?: string | null;
+  images?: readonly string[] | null;
+}): string[] {
+  if (exercise.images && exercise.images.length > 0) {
+    return [...exercise.images];
+  }
+  if (exercise.image) return [exercise.image];
+  return [];
+}
 
 /** Título visible de un ejercicio de fuerza (catálogo o guardado). */
 export function resolveStrengthExerciseTitle(
@@ -322,6 +564,7 @@ export const STRENGTH_CATEGORY_ORDER = [
   "hombros",
   "biceps",
   "triceps",
+  "piernas",
   "abdominales",
 ] as const;
 

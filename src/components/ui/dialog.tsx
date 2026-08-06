@@ -27,6 +27,14 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
     };
   }, [open, onOpenChange]);
 
+  function requestClose() {
+    // Evita que en iOS el foco salte a input[type=date] y abra el picker
+    // al intentar cerrar el modal.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) active.blur();
+    onOpenChange(false);
+  }
+
   if (!open) return null;
 
   return (
@@ -35,7 +43,10 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
         type="button"
         aria-label="Cerrar"
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px] animate-fade-in"
-        onClick={() => onOpenChange(false)}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          requestClose();
+        }}
       />
       <div
         className={cn(
@@ -47,6 +58,7 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
           "animate-slide-up sm:animate-scale-in",
           className,
         )}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         {children}
       </div>
@@ -76,8 +88,21 @@ export function DialogHeader({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-9 w-9 shrink-0"
-          onClick={onClose}
+          className="relative z-20 h-9 w-9 shrink-0"
+          aria-label="Cerrar"
+          onPointerDown={(e) => {
+            // preventDefault evita que iOS mueva el foco al date input
+            e.preventDefault();
+            const active = document.activeElement;
+            if (active instanceof HTMLElement) active.blur();
+            onClose();
+          }}
+          onClick={(e) => {
+            e.preventDefault();
+            const active = document.activeElement;
+            if (active instanceof HTMLElement) active.blur();
+            onClose();
+          }}
         >
           <X className="h-4 w-4" />
         </Button>

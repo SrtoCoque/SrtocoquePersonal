@@ -15,11 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import type { StrengthSet } from "@/lib/sport";
+import { getExerciseImages } from "@/lib/sport";
 
 export type StrengthExerciseMeta = {
   slug: string;
   title: string;
   image?: string | null;
+  images?: readonly string[] | null;
   /** Ejercicio libre temporal (solo esta vez, no se guarda en el catálogo). */
   isNewLibre?: boolean;
   /** Resumen de la última sesión, si existe. */
@@ -224,6 +226,7 @@ export function StrengthExerciseDialog({
       : (exercise?.title ?? "Ejercicio");
 
   const showLastHints = !isEdit;
+  const exerciseImgs = exercise ? getExerciseImages(exercise) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -237,10 +240,28 @@ export function StrengthExerciseDialog({
           onSubmit={handleSave}
         >
           <DialogBody className="space-y-3">
-            {exercise.image ? (
+            {exerciseImgs.length > 1 ? (
+              <div className="mx-auto grid w-full max-w-sm grid-cols-2 gap-2">
+                {exerciseImgs.map((src) => (
+                  <div
+                    key={src}
+                    className="relative aspect-square overflow-hidden rounded-xl bg-[var(--surface-2)]"
+                  >
+                    <Image
+                      src={src}
+                      alt=""
+                      fill
+                      className="object-contain p-1.5"
+                      sizes="160px"
+                      unoptimized
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : exerciseImgs.length === 1 ? (
               <div className="relative mx-auto h-28 w-28 overflow-hidden rounded-xl bg-[var(--surface-2)] sm:h-36 sm:w-36">
                 <Image
-                  src={exercise.image}
+                  src={exerciseImgs[0]}
                   alt={exercise.title}
                   fill
                   className="object-contain p-1.5"

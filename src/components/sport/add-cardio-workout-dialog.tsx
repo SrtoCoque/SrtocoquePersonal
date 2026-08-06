@@ -115,17 +115,6 @@ export function AddCardioWorkoutDialog({
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
         <DialogBody className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="cardio-date">Fecha</Label>
-            <Input
-              id="cardio-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
             <Label htmlFor="cardio-distance">Distancia (km)</Label>
             <Input
               id="cardio-distance"
@@ -134,6 +123,7 @@ export function AddCardioWorkoutDialog({
               value={distance}
               onChange={(e) => setDistance(e.target.value)}
               required
+              autoFocus
             />
           </div>
 
@@ -190,6 +180,17 @@ export function AddCardioWorkoutDialog({
             <p className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold tabular-nums">
               {pace ?? "—"}
             </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="cardio-date">Fecha</Label>
+            <Input
+              id="cardio-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
           </div>
 
           <div className="space-y-1.5">

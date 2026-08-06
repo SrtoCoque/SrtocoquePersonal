@@ -16,12 +16,14 @@ import type { StrengthSet } from "@/lib/sport";
 import {
   formatLastPerformedLabel,
   formatStrengthSetsSummary,
+  getExerciseImages,
 } from "@/lib/sport";
 
 export type StrengthExerciseItem = {
   slug: string;
   title: string;
   image?: string | null;
+  images?: readonly string[] | null;
 };
 
 type LastInfo = {
@@ -171,6 +173,7 @@ export function StrengthCategoryView({
           {exercises.map((exercise) => {
             const last = lastByExercise[exercise.slug];
             const lastLabel = formatLastPerformedLabel(last?.date);
+            const imgs = getExerciseImages(exercise);
             return (
               <button
                 key={exercise.slug}
@@ -184,9 +187,24 @@ export function StrengthCategoryView({
                   </span>
                 ) : null}
                 <div className="relative flex aspect-square w-full items-center justify-center bg-white">
-                  {exercise.image ? (
+                  {imgs.length > 1 ? (
+                    <div className="grid h-full w-full grid-cols-2 gap-px bg-[var(--border)]">
+                      {imgs.map((src) => (
+                        <div key={src} className="relative bg-white">
+                          <Image
+                            src={src}
+                            alt=""
+                            fill
+                            className="object-contain p-1.5 transition-transform duration-300 group-hover:scale-[1.03]"
+                            sizes="(max-width:640px) 25vw, 100px"
+                            unoptimized
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : imgs.length === 1 ? (
                     <Image
-                      src={exercise.image}
+                      src={imgs[0]}
                       alt={exercise.title}
                       fill
                       className="object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03]"
