@@ -10,6 +10,7 @@ import { SaveMovieDialog } from "@/components/movies/save-movie-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { TmdbMovieResult } from "@/lib/types";
+import { formatMovieRuntime } from "@/lib/types";
 
 export function MoviesSearchView({
   userId,
@@ -169,14 +170,22 @@ export function MoviesSearchView({
                     <p className="line-clamp-1 text-xs text-[var(--muted)]">
                       {movie.released?.slice(0, 4) ?? "Sin fecha"}
                     </p>
-                    <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
+                    <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
                       {movie.voteAverage ? (
                         <span className="inline-flex items-center gap-0.5 text-amber-500">
                           <Star className="h-3 w-3 fill-current" />
                           {movie.voteAverage.toFixed(1)}
                         </span>
                       ) : null}
+                      {formatMovieRuntime(movie.runtime) ? (
+                        <span>{formatMovieRuntime(movie.runtime)}</span>
+                      ) : null}
                     </div>
+                    {movie.providers.length > 0 ? (
+                      <p className="line-clamp-1 text-[10px] text-[var(--muted)]">
+                        {movie.providers.slice(0, 3).join(" · ")}
+                      </p>
+                    ) : null}
                   </div>
                 </button>
               ))}

@@ -22,6 +22,7 @@ import type {
 import {
   MOVIE_STATUS_LABELS,
   MOVIE_WATCH_LOCATION_LABELS,
+  formatMovieRuntime,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -215,9 +216,20 @@ export function EditMovieDialog({
               <div className="min-w-0">
                 <p className="font-medium leading-snug">{movie.title}</p>
                 <p className="text-sm text-[var(--muted)]">
-                  {movie.directors.join(", ") ||
-                    movie.genres.slice(0, 2).join(", ")}
+                  {[
+                    formatMovieRuntime(movie.runtime),
+                    movie.directors.join(", ") ||
+                      movie.genres.slice(0, 2).join(", ") ||
+                      null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
+                {movie.providers?.length ? (
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
+                    {movie.providers.slice(0, 4).join(" · ")}
+                  </p>
+                ) : null}
                 {viewings.length > 0 && (
                   <p className="mt-1 text-xs text-[var(--muted)]">
                     {viewings.length}{" "}

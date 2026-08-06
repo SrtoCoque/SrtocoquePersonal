@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS user_movies (
   directors TEXT[] NOT NULL DEFAULT '{}',
   cover_url TEXT,
   genres TEXT[] NOT NULL DEFAULT '{}',
+  providers TEXT[] NOT NULL DEFAULT '{}',
   released DATE,
   runtime INTEGER,
   vote_average NUMERIC,
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS user_movies (
 );
 
 ALTER TABLE user_movies ADD COLUMN IF NOT EXISTS score INTEGER;
+ALTER TABLE user_movies ADD COLUMN IF NOT EXISTS providers TEXT[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS user_movie_viewings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

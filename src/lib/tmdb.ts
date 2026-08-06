@@ -1,6 +1,7 @@
 import type { TmdbMovieResult } from "@/lib/types";
 
 const TMDB_LANG = "es-ES";
+const TMDB_WATCH_REGION = "ES";
 const POSTER_BASE = "https://image.tmdb.org/t/p/w500";
 
 type TmdbMovie = {
@@ -25,16 +26,51 @@ type TmdbCredits = {
   crew?: { job?: string; name?: string }[];
 };
 
+type TmdbProvider = { provider_name?: string };
+
+type TmdbWatchProviders = {
+  results?: Record<
+    string,
+    {
+      flatrate?: TmdbProvider[];
+      free?: TmdbProvider[];
+      ads?: TmdbProvider[];
+      rent?: TmdbProvider[];
+      buy?: TmdbProvider[];
+    }
+  >;
+};
+
 type TmdbDetails = TmdbMovie & {
   runtime?: number | null;
   genres?: { id: number; name: string }[];
   credits?: TmdbCredits;
+  "watch/providers"?: TmdbWatchProviders;
   status_message?: string;
 };
 
 function posterUrl(path: string | null | undefined): string | null {
   if (!path) return null;
   return `${POSTER_BASE}${path}`;
+}
+
+function extractProviders(data: TmdbDetails): string[] {
+  const region =
+    data["watch/providers"]?.results?.[TMDB_WATCH_REGION] ??
+    data["watch/providers"]?.results?.ES;
+  if (!region) return [];
+
+  const names = [
+    ...(region.flatrate ?? []),
+    ...(region.free ?? []),
+    ...(region.ads ?? []),
+    ...(region.rent ?? []),
+    ...(region.buy ?? []),
+  ]
+    .map((p) => p.provider_name)
+    .filter((n): n is string => Boolean(n));
+
+  return [...new Set(names)].slice(0, 6);
 }
 
 async function fetchTmdb<T>(url: string, retries = 3): Promise<T> {
@@ -76,6 +112,7 @@ function mapSearchMovie(item: TmdbMovie): TmdbMovieResult & { _score: number } {
     released: item.release_date || null,
     runtime: null,
     voteAverage: item.vote_average ?? null,
+    providers: [],
     overview: item.overview,
     popularity: item.popularity,
     _score: 0,
@@ -102,6 +139,41 @@ function scoreMovie(
   return score;
 }
 
+export async function getTmdbMovieDetails(
+  tmdbId: number,
+): Promise<TmdbMovieResult> {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) throw new Error("Falta TMDB_API_KEY");
+
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    language: TMDB_LANG,
+    append_to_response: "credits,watch/providers",
+  });
+
+  const data = await fetchTmdb<TmdbDetails>(
+    `https://api.themoviedb.org/3/movie/${tmdbId}?${params.toString()}`,
+  );
+
+  const directors = (data.credits?.crew ?? [])
+    .filter((c) => c.job === "Director" && c.name)
+    .map((c) => c.name as string);
+
+  return {
+    tmdbId: data.id,
+    title: data.title ?? data.original_title ?? "Sin título",
+    originalTitle: data.original_title ?? null,
+    directors,
+    coverUrl: posterUrl(data.poster_path),
+    genres: (data.genres ?? []).map((g) => g.name).filter(Boolean),
+    released: data.release_date || null,
+    runtime: data.runtime ?? null,
+    voteAverage: data.vote_average ?? null,
+    providers: extractProviders(data),
+    overview: data.overview,
+  };
+}
+
 export async function searchTmdbMovies(
   query: string,
   maxResults = 8,
@@ -124,44 +196,28 @@ export async function searchTmdbMovies(
     `https://api.themoviedb.org/3/search/movie?${params.toString()}`,
   );
 
-  return (data.results ?? [])
+  const ranked = (data.results ?? [])
     .map(mapSearchMovie)
     .map((movie) => ({ ...movie, _score: scoreMovie(movie, trimmed) }))
     .sort((a, b) => b._score - a._score)
-    .slice(0, maxResults)
-    .map(({ _score: _, ...movie }) => movie);
-}
+    .slice(0, maxResults);
 
-export async function getTmdbMovieDetails(
-  tmdbId: number,
-): Promise<TmdbMovieResult> {
-  const apiKey = process.env.TMDB_API_KEY;
-  if (!apiKey) throw new Error("Falta TMDB_API_KEY");
-
-  const params = new URLSearchParams({
-    api_key: apiKey,
-    language: TMDB_LANG,
-    append_to_response: "credits",
-  });
-
-  const data = await fetchTmdb<TmdbDetails>(
-    `https://api.themoviedb.org/3/movie/${tmdbId}?${params.toString()}`,
+  const enriched = await Promise.all(
+    ranked.map(async ({ _score: _, ...movie }) => {
+      try {
+        const details = await getTmdbMovieDetails(movie.tmdbId);
+        return {
+          ...movie,
+          ...details,
+          coverUrl: details.coverUrl ?? movie.coverUrl,
+          title: details.title || movie.title,
+          voteAverage: details.voteAverage ?? movie.voteAverage,
+        };
+      } catch {
+        return movie;
+      }
+    }),
   );
 
-  const directors = (data.credits?.crew ?? [])
-    .filter((c) => c.job === "Director" && c.name)
-    .map((c) => c.name as string);
-
-  return {
-    tmdbId: data.id,
-    title: data.title ?? data.original_title ?? "Sin título",
-    originalTitle: data.original_title ?? null,
-    directors,
-    coverUrl: posterUrl(data.poster_path),
-    genres: (data.genres ?? []).map((g) => g.name).filter(Boolean),
-    released: data.release_date || null,
-    runtime: data.runtime ?? null,
-    voteAverage: data.vote_average ?? null,
-    overview: data.overview,
-  };
+  return enriched;
 }

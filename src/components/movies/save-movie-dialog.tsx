@@ -77,6 +77,7 @@ export function SaveMovieDialog({
         directors: enriched.directors,
         cover_url: enriched.coverUrl,
         genres: enriched.genres,
+        providers: enriched.providers,
         released: enriched.released,
         runtime: enriched.runtime,
         vote_average: enriched.voteAverage,
@@ -162,6 +163,16 @@ export function SaveMovieDialog({
             {movie.voteAverage ? (
               <p className="mt-1 text-xs text-[var(--muted)]">
                 TMDB {movie.voteAverage.toFixed(1)}
+                {movie.runtime ? ` · ${movie.runtime} min` : ""}
+              </p>
+            ) : movie.runtime ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {movie.runtime} min
+              </p>
+            ) : null}
+            {movie.providers.length > 0 ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {movie.providers.slice(0, 4).join(" · ")}
               </p>
             ) : null}
           </div>

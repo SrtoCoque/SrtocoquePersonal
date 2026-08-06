@@ -4,7 +4,7 @@ import Image from "next/image";
 import { Clapperboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { MovieStatus, UserMovie } from "@/lib/types";
-import { MOVIE_STATUS_LABELS } from "@/lib/types";
+import { formatMovieRuntime, MOVIE_STATUS_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLE: Record<MovieStatus, string> = {
@@ -54,10 +54,20 @@ export function MovieCard({
           {movie.title}
         </h3>
         <p className="line-clamp-1 text-xs text-[var(--muted)]">
-          {movie.directors.slice(0, 2).join(", ") ||
-            movie.genres.slice(0, 2).join(", ") ||
-            "Sin datos"}
+          {[
+            formatMovieRuntime(movie.runtime),
+            movie.directors.slice(0, 2).join(", ") ||
+              movie.genres.slice(0, 2).join(", ") ||
+              null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Sin datos"}
         </p>
+        {movie.providers?.length ? (
+          <p className="line-clamp-1 text-[10px] text-[var(--muted)]">
+            {movie.providers.slice(0, 3).join(" · ")}
+          </p>
+        ) : null}
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
           {movie.score != null ? <span>{movie.score}/100</span> : null}

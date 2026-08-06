@@ -125,6 +125,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
         directors: enriched.directors,
         cover_url: enriched.coverUrl,
         genres: enriched.genres,
+        providers: enriched.providers,
         released: enriched.released,
         runtime: enriched.runtime,
         vote_average: enriched.voteAverage,
@@ -232,6 +233,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                       <p className="truncate text-xs text-[var(--muted)]">
                         {[
                           movie.released?.slice(0, 4),
+                          movie.runtime ? `${movie.runtime} min` : null,
                           movie.voteAverage
                             ? `★ ${movie.voteAverage.toFixed(1)}`
                             : null,

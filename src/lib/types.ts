@@ -83,6 +83,7 @@ export type UserMovie = {
   released: string | null;
   runtime: number | null;
   vote_average: number | null;
+  providers: string[];
   status: MovieStatus;
   minutes_watched: number;
   finish_date: string | null;
@@ -113,9 +114,20 @@ export type TmdbMovieResult = {
   released: string | null;
   runtime: number | null;
   voteAverage: number | null;
+  providers: string[];
   overview?: string;
   popularity?: number;
 };
+
+/** Formatea minutos TMDB: 135 → "2h 15min" */
+export function formatMovieRuntime(minutes: number | null | undefined): string | null {
+  if (minutes == null || !Number.isFinite(minutes) || minutes <= 0) return null;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h <= 0) return `${m} min`;
+  if (m <= 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
 
 export const STATUS_LABELS: Record<BookStatus, string> = {
   wishlist: "Wishlist",
