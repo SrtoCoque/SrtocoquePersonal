@@ -18,8 +18,19 @@ const PROVIDER_LOGO_PATHS: Record<string, string> = {
   appletvstore: "/SPnB1qiCkYfirS2it3hZORwGVn.jpg",
   appletvplus: "/mcbz1LgtErU9p4UdbZ0rG6RTWHX.jpg",
   movistarplus: "/jse4MOi92Jgetym7nbXFZZBI6LK.jpg",
+  movistarplusplus: "/jse4MOi92Jgetym7nbXFZZBI6LK.jpg",
   movistar: "/jse4MOi92Jgetym7nbXFZZBI6LK.jpg",
   movistarplusficcintotal: "/f6TRLB3H4jDpFEZ0z2KWSSvu1SB.jpg",
+  mgmplus: "/efu1Cqc63XrPBoreYnf2mn0Nizj.jpg",
+  mgm: "/efu1Cqc63XrPBoreYnf2mn0Nizj.jpg",
+  mgmplusamazonchannel: "/efu1Cqc63XrPBoreYnf2mn0Nizj.jpg",
+  amc: "/2ino0WmHA4GROB7NYKzT6PGqLcb.jpg",
+  amcplus: "/2ino0WmHA4GROB7NYKzT6PGqLcb.jpg",
+  amcplusamazonchannel: "/2ino0WmHA4GROB7NYKzT6PGqLcb.jpg",
+  amcchannelsamazonchannel: "/iaFj0Q4BVZQesLVfSyeHZhZHZhR.jpg",
+  amcchannel: "/iaFj0Q4BVZQesLVfSyeHZhZHZhR.jpg",
+  amcchannels: "/iaFj0Q4BVZQesLVfSyeHZhZHZhR.jpg",
+  amcplusappletvchannel: "/oTQdXIqM9iewlN4MC2nhKB0gHw.jpg",
   skyshowtime: "/h0ZYcYHicKQ4Ixm5nOjqvwni5NG.jpg",
   filmin: "/kO2SWXvDCHAquaUuTJBuZkTBAuU.jpg",
   filminplus: "/ozZU2vSlyL11rFGEkq1HE0yxIJq.jpg",
@@ -46,7 +57,28 @@ function normalizeProviderKey(name: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/\+/g, "plus")
-    .replace(/[^a-z0-9]+/g, "");
+    .replace(/[^a-z0-9]+/g, "")
+    .replace(/plusplus+/g, "plus");
+}
+
+function lookupProviderLogoPath(key: string): string | undefined {
+  if (PROVIDER_LOGO_PATHS[key]) return PROVIDER_LOGO_PATHS[key];
+
+  // Prefijos truncados en UI (p. ej. "AMC Chan…")
+  const aliases: [string, string][] = [
+    ["movistar", "movistarplus"],
+    ["mgm", "mgmplus"],
+    ["amcchannels", "amcchannelsamazonchannel"],
+    ["amcchan", "amcchannelsamazonchannel"],
+    ["amcplus", "amcplusamazonchannel"],
+    ["amc", "amcplusamazonchannel"],
+  ];
+  for (const [prefix, target] of aliases) {
+    if (key === prefix || key.startsWith(prefix)) {
+      return PROVIDER_LOGO_PATHS[target];
+    }
+  }
+  return undefined;
 }
 
 /** Resuelve logo TMDB para nombres legacy (solo texto) o JSON sin logo. */
@@ -55,6 +87,6 @@ export function resolveMovieProviderLogo(
   existingLogoUrl?: string | null,
 ): string | null {
   if (existingLogoUrl) return existingLogoUrl;
-  const path = PROVIDER_LOGO_PATHS[normalizeProviderKey(name)];
+  const path = lookupProviderLogoPath(normalizeProviderKey(name));
   return path ? `${LOGO_BASE}${path}` : null;
 }

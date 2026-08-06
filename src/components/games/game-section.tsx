@@ -7,7 +7,7 @@ import type { UserGame } from "@/lib/types";
 
 export function GameSection({
   title,
-  subtitle,
+  subtitle: _subtitle,
   games,
   limit = 12,
   onSeeMore,
@@ -22,22 +22,19 @@ export function GameSection({
   onEdit: (game: UserGame) => void;
   emptyLabel: string;
 }) {
+  void _subtitle;
   const visible = games.slice(0, limit);
 
   return (
     <section className="animate-slide-up">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight sm:text-2xl">
             {title}
           </h2>
-          {subtitle ? (
-            <p className="mt-0.5 text-sm text-[var(--muted)]">{subtitle}</p>
-          ) : (
-            <p className="mt-0.5 text-sm text-[var(--muted)]">
-              {games.length} {games.length === 1 ? "juego" : "juegos"}
-            </p>
-          )}
+          <p className="text-sm text-[var(--muted)]">
+            {games.length} {games.length === 1 ? "juego" : "juegos"}
+          </p>
         </div>
 
         {games.length > 0 && (

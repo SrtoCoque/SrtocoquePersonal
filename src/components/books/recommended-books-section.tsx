@@ -105,13 +105,11 @@ export function RecommendedBooksSection({
   if (loading) {
     return (
       <section className="animate-slide-up">
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight sm:text-2xl">
             Recomendados
           </h2>
-          <p className="mt-0.5 text-sm text-[var(--muted)]">
-            Según tus autores…
-          </p>
+          <p className="text-sm text-[var(--muted)]">Según tus autores…</p>
         </div>
         <MediaScrollRow>
           {Array.from({ length: 6 }).map((_, i) => (
@@ -134,12 +132,12 @@ export function RecommendedBooksSection({
 
   return (
     <section className="animate-slide-up">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight sm:text-2xl">
             Recomendados
           </h2>
-          <p className="mt-0.5 text-sm text-[var(--muted)]">{subtitle}</p>
+          <p className="text-sm text-[var(--muted)]">{subtitle}</p>
         </div>
         <Link
           href="/recommended"

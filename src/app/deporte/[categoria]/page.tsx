@@ -19,6 +19,10 @@ export default async function DeporteCategoriaPage({
   if (!user) redirect("/login");
 
   return (
-    <SportCategoryView email={user.email ?? null} slug={categoria} />
+    <SportCategoryView
+      email={user.email ?? null}
+      userId={user.id}
+      slug={categoria}
+    />
   );
 }

@@ -17,30 +17,26 @@ type Props = {
 
 export function BookSection({
   title,
-  subtitle,
+  subtitle: _subtitle,
   books,
   limit = 12,
   onSeeMore,
   onEdit,
   emptyLabel,
 }: Props) {
+  void _subtitle;
   const visible = books.slice(0, limit);
 
   return (
     <section className="animate-slide-up">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight sm:text-2xl">
             {title}
           </h2>
-          {subtitle ? (
-            <p className="mt-0.5 text-sm text-[var(--muted)]">{subtitle}</p>
-          ) : (
-            <p className="mt-0.5 text-sm text-[var(--muted)]">
-              {books.length}{" "}
-              {books.length === 1 ? "libro" : "libros"}
-            </p>
-          )}
+          <p className="text-sm text-[var(--muted)]">
+            {books.length} {books.length === 1 ? "libro" : "libros"}
+          </p>
         </div>
 
         {books.length > 0 && (

@@ -181,11 +181,11 @@ export function MoviesLibraryView({
 
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
               Películas
             </h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {movies.length}{" "}
               {movies.length === 1 ? "película guardada" : "películas guardadas"}
             </p>
