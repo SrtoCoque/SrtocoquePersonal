@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Mail, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Loader2, Mail, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,26 @@ import { Label } from "@/components/ui/label";
 
 type Mode = "login" | "register";
 
+function authErrorMessage(error: unknown, isLogin: boolean): string {
+  const raw = error instanceof Error ? error.message : "Error de autenticación";
+  const lower = raw.toLowerCase();
+
+  if (lower.includes("invalid login credentials")) {
+    return isLogin
+      ? "Email o contraseña incorrectos. Si acabas de registrarte, puede que tengas que confirmar el email en Supabase (o desactivar «Confirm email»)."
+      : raw;
+  }
+  if (lower.includes("email not confirmed")) {
+    return "Tu email aún no está confirmado. Revisa tu correo o desactiva «Confirm email» en Supabase.";
+  }
+  return raw;
+}
+
 export function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,27 +49,34 @@ export function AuthForm({ mode }: { mode: Mode }) {
     try {
       if (isLogin) {
         const { error: authError } = await supabase.auth.signInWithPassword({
-          email,
+          email: email.trim(),
           password,
         });
         if (authError) throw authError;
         router.push("/library");
         router.refresh();
       } else {
-        const { error: authError } = await supabase.auth.signUp({
-          email,
+        const { data, error: authError } = await supabase.auth.signUp({
+          email: email.trim(),
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
           },
         });
         if (authError) throw authError;
+
+        if (data.session) {
+          router.push("/library");
+          router.refresh();
+          return;
+        }
+
         setMessage(
-          "Cuenta creada. Si hace falta confirmar el email, revisa tu correo. Si no, inicia sesión.",
+          "Cuenta creada. Revisa tu correo y confirma el enlace antes de iniciar sesión. Si no te llega nada, en Supabase → Authentication → Providers → Email desactiva «Confirm email».",
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error de autenticación");
+      setError(authErrorMessage(err, isLogin));
     } finally {
       setLoading(false);
     }
@@ -70,7 +93,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
     const supabase = createClient();
     try {
       const { error: authError } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim(),
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -79,7 +102,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       setMagicSent(true);
       setMessage("Enlace mágico enviado. Revisa tu bandeja de entrada.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo enviar el enlace");
+      setError(authErrorMessage(err, true));
     } finally {
       setLoading(false);
     }
@@ -126,17 +149,31 @@ export function AuthForm({ mode }: { mode: Mode }) {
           <Label htmlFor="password" className="text-slate-200">
             Contraseña
           </Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete={isLogin ? "current-password" : "new-password"}
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mínimo 6 caracteres"
-            className="border-white/15 bg-slate-900/70 text-slate-50 placeholder:text-slate-500 focus-visible:ring-sky-400/60"
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              className="border-white/15 bg-slate-900/70 pr-11 text-slate-50 placeholder:text-slate-500 focus-visible:ring-sky-400/60"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:text-slate-100"
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </div>
 
         {error && (
