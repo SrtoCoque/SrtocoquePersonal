@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Gamepad2, Plus } from "lucide-react";
 import { GamesHeader } from "@/components/layout/games-header";
 import { AddGameModal } from "@/components/games/add-game-modal";
@@ -18,11 +19,24 @@ type Filter = "all" | "shelf" | GameStatus;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
-  { id: "shelf", label: "Estantería" },
+  { id: "shelf", label: "Biblioteca" },
   { id: "playing", label: "Jugando" },
   { id: "wishlist", label: "Wishlist" },
   { id: "completed", label: "Completados" },
 ];
+
+function parseFilter(raw: string | null): Filter {
+  if (
+    raw === "shelf" ||
+    raw === "playing" ||
+    raw === "wishlist" ||
+    raw === "completed" ||
+    raw === "owned"
+  ) {
+    return raw;
+  }
+  return "all";
+}
 
 export function GamesLibraryView({
   userId,
@@ -31,9 +45,14 @@ export function GamesLibraryView({
   userId: string;
   email: string | null;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [games, setGames] = useState<UserGame[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(() =>
+    parseFilter(searchParams.get("filter")),
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<UserGame | null>(null);
 
@@ -52,6 +71,19 @@ export function GamesLibraryView({
   useEffect(() => {
     loadGames();
   }, [loadGames]);
+
+  useEffect(() => {
+    setFilter(parseFilter(searchParams.get("filter")));
+  }, [searchParams]);
+
+  function setFilterAndUrl(next: Filter) {
+    setFilter(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("filter");
+    else params.set("filter", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const playingGames = useMemo(
     () => games.filter((g) => g.status === "playing"),
@@ -78,8 +110,8 @@ export function GamesLibraryView({
     <div className="min-h-screen">
       <GamesHeader email={email} onAddGame={() => setAddOpen(true)} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
               Videojuegos
@@ -90,12 +122,12 @@ export function GamesLibraryView({
             </p>
           </div>
 
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+          <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 sm:w-auto">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setFilter(f.id)}
+                onClick={() => setFilterAndUrl(f.id)}
                 className={cn(
                   "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
                   filter === f.id
@@ -136,17 +168,17 @@ export function GamesLibraryView({
                 title="Wishlist"
                 subtitle="Juegos que quieres conseguir"
                 games={wishlistGames}
-                onSeeMore={() => setFilter("wishlist")}
+                onSeeMore={() => setFilterAndUrl("wishlist")}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía."
               />
               <GameSection
-                title="Estantería"
+                title="Biblioteca"
                 subtitle="Todo lo que ya tienes (sin empezar, jugando o completado)"
                 games={shelfGames}
-                onSeeMore={() => setFilter("shelf")}
+                onSeeMore={() => setFilterAndUrl("shelf")}
                 onEdit={setEditing}
-                emptyLabel="Aún no has añadido juegos a tu estantería."
+                emptyLabel="Aún no has añadido juegos a tu biblioteca."
               />
             </div>
           )
@@ -158,25 +190,13 @@ export function GamesLibraryView({
             <Button
               className="mt-5"
               variant="secondary"
-              onClick={() => setFilter("all")}
+              onClick={() => setFilterAndUrl("all")}
             >
               Volver a Todos
             </Button>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-[var(--muted)]">
-                {filtered.length} resultados
-              </p>
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className="text-sm text-[var(--accent)] hover:underline"
-              >
-                Ver inicio
-              </button>
-            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
               {filtered.map((game) => (
                 <GameCard key={game.id} game={game} onEdit={setEditing} />

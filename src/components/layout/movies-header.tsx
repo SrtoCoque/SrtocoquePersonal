@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   Clapperboard,
+  Home,
   Library,
   LogOut,
-  Plus,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -23,9 +23,29 @@ export function MoviesHeader({
   onAddMovie,
 }: {
   email?: string | null;
+  /** @deprecated El alta se hace desde la biblioteca / búsqueda. */
   onAddMovie?: () => void;
 }) {
+  return (
+    <Suspense
+      fallback={
+        <header className="sticky top-0 z-40 h-14 border-b border-[var(--border)] bg-[var(--background)]/85" />
+      }
+    >
+      <MoviesHeaderBar email={email} onAddMovie={onAddMovie} />
+    </Suspense>
+  );
+}
+
+function MoviesHeaderBar({
+  email: _email,
+}: {
+  email?: string | null;
+  onAddMovie?: () => void;
+}) {
+  void _email;
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -36,13 +56,20 @@ export function MoviesHeader({
     router.refresh();
   }
 
+  const searchActive =
+    searchOpen || pathname.startsWith("/movies/search");
+  const libraryFilter = searchParams.get("filter");
+  const onMoviesHome =
+    pathname === "/movies" && (!libraryFilter || libraryFilter === "all");
+  const onMoviesShelf = pathname === "/movies" && libraryFilter === "shelf";
+
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+    <header className="sticky top-0 z-40 overflow-x-clip border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
+      <div className="mx-auto flex h-14 w-full min-w-0 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2 sm:gap-6">
           <Link
-            href="/movies"
-            aria-label="Inicio de películas"
+            href="/home"
+            aria-label="Cambiar de sección"
             className="flex shrink-0 items-center gap-2 font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-600 text-white">
@@ -54,10 +81,23 @@ export function MoviesHeader({
           <nav className="flex items-center gap-0.5 sm:gap-1">
             <Link
               href="/movies"
+              aria-label="Inicio"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
+                onMoviesHome
+                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
+              )}
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Inicio</span>
+            </Link>
+            <Link
+              href="/movies?filter=shelf"
               aria-label="Biblioteca"
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
-                pathname === "/movies"
+                onMoviesShelf
                   ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
                   : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
               )}
@@ -78,20 +118,6 @@ export function MoviesHeader({
               <Sparkles className="h-4 w-4" />
               <span className="hidden sm:inline">Recomendados</span>
             </Link>
-            <button
-              type="button"
-              onClick={() => setSearchOpen((o) => !o)}
-              aria-label="Buscar"
-              aria-expanded={searchOpen}
-              className={cn(
-                "inline-flex items-center justify-center rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
-                searchOpen || pathname.startsWith("/movies/search")
-                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
-                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
-              )}
-            >
-              <Search className="h-4 w-4" />
-            </button>
             <Link
               href="/movies/stats"
               aria-label="Estadísticas"
@@ -109,22 +135,21 @@ export function MoviesHeader({
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          {onAddMovie ? (
-            <Button
-              size="sm"
-              onClick={onAddMovie}
-              className="hidden gap-1.5 sm:inline-flex"
-            >
-              <Plus className="h-4 w-4" />
-              Añadir película
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setSearchOpen((o) => !o)}
+            aria-label="Buscar"
+            aria-expanded={searchOpen}
+            className={cn(
+              "gap-1.5",
+              searchActive && "ring-1 ring-[var(--accent)]/40",
+            )}
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Buscar</span>
+          </Button>
           <ThemeToggle />
-          {email ? (
-            <span className="hidden max-w-[140px] truncate text-xs text-[var(--muted)] md:inline">
-              {email}
-            </span>
-          ) : null}
           <Button
             variant="ghost"
             size="icon"

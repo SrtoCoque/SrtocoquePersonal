@@ -2,20 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Popcorn } from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { RecommendedMovieCard } from "@/components/movies/recommended-movie-card";
 import { SaveMovieDialog } from "@/components/movies/save-movie-dialog";
 import { createClient } from "@/lib/supabase/client";
-import {
-  deriveTopGenreNames,
-  libraryTmdbIds,
-} from "@/lib/movie-tastes";
 import type { TmdbMovieResult, UserMovie } from "@/lib/types";
 import { parseMovieProviders } from "@/lib/types";
 
-export function MoviesRecommendedView({
+export function MoviesUpcomingView({
   userId,
   email,
 }: {
@@ -24,7 +20,6 @@ export function MoviesRecommendedView({
 }) {
   const [library, setLibrary] = useState<UserMovie[]>([]);
   const [results, setResults] = useState<TmdbMovieResult[]>([]);
-  const [tasteGenres, setTasteGenres] = useState<string[]>([]);
   const [loadingLib, setLoadingLib] = useState(true);
   const [loadingRec, setLoadingRec] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,44 +57,33 @@ export function MoviesRecommendedView({
 
   useEffect(() => {
     if (loadingLib) return;
-
-    const genres = deriveTopGenreNames(library, 3);
-    const exclude = libraryTmdbIds(library);
     const controller = new AbortController();
 
     async function load() {
       setLoadingRec(true);
       setError(null);
       try {
-        const params = new URLSearchParams({
-          limit: "24",
-          exclude: exclude.join(","),
-        });
-        if (genres.length) params.set("genres", genres.join(","));
-
-        const res = await fetch(`/api/movies/recommended?${params}`, {
+        const res = await fetch(`/api/movies/upcoming?limit=24`, {
           signal: controller.signal,
         });
         const data = (await res.json()) as {
           results?: TmdbMovieResult[];
-          genres?: string[];
           error?: string;
         };
-        if (!res.ok) throw new Error(data.error ?? "Error al recomendar");
+        if (!res.ok) throw new Error(data.error ?? "Error al cargar estrenos");
         setResults(data.results ?? []);
-        setTasteGenres(data.genres ?? genres);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Error");
         setResults([]);
       } finally {
-        setLoadingRec(false);
+        if (!controller.signal.aborted) setLoadingRec(false);
       }
     }
 
     load();
     return () => controller.abort();
-  }, [library, loadingLib]);
+  }, [loadingLib]);
 
   function handleClick(movie: TmdbMovieResult) {
     const existing = libraryByTmdbId.get(movie.tmdbId);
@@ -116,7 +100,7 @@ export function MoviesRecommendedView({
     <div className="min-h-screen">
       <MoviesHeader email={email} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <Link
           href="/movies"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -127,13 +111,11 @@ export function MoviesRecommendedView({
 
         <div className="mb-6">
           <h1 className="flex items-center gap-2 font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
-            <Sparkles className="h-7 w-7 text-[var(--accent)]" />
-            Recomendados
+            <Popcorn className="h-7 w-7 text-[var(--accent)]" />
+            Próximos estrenos
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {tasteGenres.length > 0
-              ? `Según tus gustos · ${tasteGenres.join(", ")} · nota TMDB ≥ 7`
-              : "Películas bien valoradas en TMDB · nota ≥ 7"}
+            Estrenos en cines · España (TMDB)
           </p>
         </div>
 
@@ -146,12 +128,11 @@ export function MoviesRecommendedView({
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-[var(--muted)]">
             <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-sm">Buscando recomendaciones…</p>
+            <p className="text-sm">Cargando estrenos…</p>
           </div>
         ) : results.length === 0 ? (
           <p className="py-16 text-center text-[var(--muted)]">
-            No hay recomendaciones ahora mismo. Añade películas a tu biblioteca
-            para afinar los gustos.
+            No hay próximos estrenos ahora mismo.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">

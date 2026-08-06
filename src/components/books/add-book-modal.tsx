@@ -19,6 +19,7 @@ import {
 } from "@/components/books/book-destination-fields";
 import { createClient } from "@/lib/supabase/client";
 import type { GoogleBookResult, ShelfStatus } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -64,12 +65,13 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      setSearching(true);
       setError(null);
       try {
         const res = await fetch(
@@ -87,8 +89,9 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Error de búsqueda");
+        setResults([]);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 350);
 
@@ -317,15 +320,19 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
 
             <Button
               type="submit"
-              className="w-full"
+              className={cn(
+                "w-full",
+                destination === "wishlist" &&
+                  "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+              )}
               disabled={!destination || saving}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {!destination
-                ? "Elige Wishlist o Estantería"
+                ? "Elige Wishlist o Biblioteca"
                 : destination === "wishlist"
                   ? "Añadir a Wishlist"
-                  : "Añadir a la estantería"}
+                  : "Añadir a la biblioteca"}
             </Button>
           </form>
         )}

@@ -53,7 +53,7 @@ export function MovieDestinationFields({
             className={cn(
               "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
               destination === "wishlist"
-                ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                ? "border-amber-500 bg-amber-500/15"
                 : "border-[var(--border)] hover:bg-[var(--surface-2)]",
             )}
           >
@@ -61,11 +61,19 @@ export function MovieDestinationFields({
               className={cn(
                 "h-4 w-4",
                 destination === "wishlist"
-                  ? "text-[var(--accent)]"
+                  ? "text-amber-600 dark:text-amber-300"
                   : "text-[var(--muted)]",
               )}
             />
-            <span className="text-sm font-medium">Wishlist</span>
+            <span
+              className={cn(
+                "text-sm font-medium",
+                destination === "wishlist" &&
+                  "text-amber-700 dark:text-amber-300",
+              )}
+            >
+              Wishlist
+            </span>
           </button>
 
           {!upcoming && (

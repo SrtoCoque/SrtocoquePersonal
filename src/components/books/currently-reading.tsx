@@ -22,7 +22,7 @@ export function CurrentlyReading({ book, onEdit, onAdd }: Props) {
           No estás leyendo ningún libro
         </h2>
         <p className="mt-1 max-w-md text-sm text-[var(--muted)]">
-          Marca un libro como «Leyendo» o añade uno nuevo a tu estantería.
+          Marca un libro como «Leyendo» o añade uno nuevo a tu biblioteca.
         </p>
         <Button className="mt-4" size="sm" onClick={onAdd}>
           <BookOpen className="h-4 w-4" />
@@ -71,17 +71,23 @@ export function CurrentlyReading({ book, onEdit, onAdd }: Props) {
 
           {progress !== null ? (
             <div className="mt-5 max-w-md">
-              <div className="mb-1.5 flex justify-between text-xs text-[var(--muted)]">
-                <span>
-                  {book.pages_read} / {book.total_pages} páginas
-                </span>
+              <div className="mb-1 flex justify-between text-xs text-[var(--muted)]">
+                <span>Progreso</span>
                 <span>{progress}%</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-3)]">
-                <div
-                  className="h-full rounded-full bg-[var(--accent)] transition-all"
-                  style={{ width: `${progress}%` }}
-                />
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">
+                  {book.pages_read}
+                </span>
+                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-3)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--accent)] transition-all"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">
+                  {book.total_pages}
+                </span>
               </div>
             </div>
           ) : (

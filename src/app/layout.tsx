@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cinzel, Literata, Plus_Jakarta_Sans } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
@@ -25,15 +25,22 @@ export const metadata: Metadata = {
     "Gestiona tus lecturas: wishlist, progreso, valoraciones y estadísticas anuales.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning className="h-full">
+    <html lang="es" suppressHydrationWarning className="h-full overflow-x-clip">
       <body
-        className={`${sans.variable} ${display.variable} ${wizard.variable} min-h-full antialiased`}
+        className={`${sans.variable} ${display.variable} ${wizard.variable} min-h-full overflow-x-clip antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
       </body>

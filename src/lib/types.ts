@@ -71,6 +71,11 @@ export type RawgGameResult = {
   ratingsCount?: number;
 };
 
+export type MovieProvider = {
+  name: string;
+  logoUrl: string | null;
+};
+
 export type UserMovie = {
   id: string;
   user_id: string;
@@ -83,7 +88,7 @@ export type UserMovie = {
   released: string | null;
   runtime: number | null;
   vote_average: number | null;
-  providers: string[];
+  providers: MovieProvider[];
   status: MovieStatus;
   minutes_watched: number;
   finish_date: string | null;
@@ -114,7 +119,7 @@ export type TmdbMovieResult = {
   released: string | null;
   runtime: number | null;
   voteAverage: number | null;
-  providers: string[];
+  providers: MovieProvider[];
   /** ID de YouTube del trailer oficial (TMDB), si existe */
   youtubeTrailerKey?: string | null;
   overview?: string;
@@ -210,7 +215,7 @@ export const STATUS_LABELS: Record<BookStatus, string> = {
 
 export const STATUS_HINTS: Record<BookStatus, string> = {
   wishlist: "Lo quiero, pero aún no lo tengo",
-  owned: "Lo tengo en la estantería, sin empezar",
+  owned: "Lo tengo en la biblioteca, sin empezar",
   reading: "Lo tengo · leyendo ahora",
   read: "Lo tengo · ya terminado",
 };
@@ -274,3 +279,53 @@ export function isGameOnShelf(status: GameStatus): status is GameShelfStatus {
 export function isMovieOnShelf(status: MovieStatus): status is MovieShelfStatus {
   return MOVIE_SHELF_STATUSES.includes(status as MovieShelfStatus);
 }
+
+/** Persistir en `user_movies.providers` (TEXT[]): JSON o nombre legado. */
+export function serializeMovieProviders(providers: MovieProvider[]): string[] {
+  return providers.map((p) =>
+    JSON.stringify({ n: p.name, l: p.logoUrl }),
+  );
+}
+
+export function parseMovieProviders(raw: unknown): MovieProvider[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MovieProvider[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    let name: string | null = null;
+    let logoUrl: string | null = null;
+
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("{")) {
+        try {
+          const o = JSON.parse(trimmed) as {
+            n?: string;
+            name?: string;
+            l?: string | null;
+            logoUrl?: string | null;
+          };
+          name = o.n ?? o.name ?? null;
+          logoUrl = o.l ?? o.logoUrl ?? null;
+        } catch {
+          name = trimmed;
+        }
+      } else {
+        name = trimmed;
+      }
+    } else if (item && typeof item === "object") {
+      const o = item as { name?: string; logoUrl?: string | null };
+      name = o.name ?? null;
+      logoUrl = o.logoUrl ?? null;
+    }
+
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, logoUrl });
+  }
+
+  return out;
+}
+

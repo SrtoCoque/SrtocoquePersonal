@@ -2,6 +2,7 @@
 
 import { ArrowRight } from "lucide-react";
 import { BookCard } from "@/components/books/book-card";
+import { MediaScrollRow } from "@/components/ui/media-scroll-row";
 import type { UserBook } from "@/lib/types";
 
 type Props = {
@@ -18,13 +19,12 @@ export function BookSection({
   title,
   subtitle,
   books,
-  limit = 8,
+  limit = 12,
   onSeeMore,
   onEdit,
   emptyLabel,
 }: Props) {
   const visible = books.slice(0, limit);
-  const hasMore = books.length > limit;
 
   return (
     <section className="animate-slide-up">
@@ -60,28 +60,11 @@ export function BookSection({
           {emptyLabel}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 sm:gap-4">
+        <MediaScrollRow>
           {visible.map((book) => (
-            <BookCard
-              key={book.id}
-              book={book}
-              onEdit={onEdit}
-            />
+            <BookCard key={book.id} book={book} onEdit={onEdit} />
           ))}
-        </div>
-      )}
-
-      {hasMore && (
-        <div className="mt-4 flex justify-center sm:hidden">
-          <button
-            type="button"
-            onClick={onSeeMore}
-            className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent)]"
-          >
-            Ver los {books.length} libros
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
+        </MediaScrollRow>
       )}
     </section>
   );

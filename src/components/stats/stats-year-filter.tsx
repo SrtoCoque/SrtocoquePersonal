@@ -31,7 +31,7 @@ export function StatsYearFilter({
   years: number[];
 }) {
   return (
-    <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+    <div className="mb-6 flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
       <button
         type="button"
         onClick={() => onPeriodChange("all")}

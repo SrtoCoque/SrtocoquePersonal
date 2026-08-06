@@ -2,13 +2,14 @@
 
 import { ArrowRight } from "lucide-react";
 import { GameCard } from "@/components/games/game-card";
+import { MediaScrollRow } from "@/components/ui/media-scroll-row";
 import type { UserGame } from "@/lib/types";
 
 export function GameSection({
   title,
   subtitle,
   games,
-  limit = 8,
+  limit = 12,
   onSeeMore,
   onEdit,
   emptyLabel,
@@ -56,11 +57,11 @@ export function GameSection({
           {emptyLabel}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 sm:gap-4">
+        <MediaScrollRow>
           {visible.map((game) => (
             <GameCard key={game.id} game={game} onEdit={onEdit} />
           ))}
-        </div>
+        </MediaScrollRow>
       )}
     </section>
   );

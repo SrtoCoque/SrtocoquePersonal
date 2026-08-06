@@ -60,12 +60,13 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      setSearching(true);
       setError(null);
       try {
         const res = await fetch(
@@ -81,8 +82,9 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Error de búsqueda");
+        setResults([]);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 350);
 

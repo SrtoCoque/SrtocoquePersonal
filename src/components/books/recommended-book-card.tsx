@@ -1,17 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { Bookmark, Check, Clapperboard, Star } from "lucide-react";
-import type { MovieStatus, TmdbMovieResult, UserMovie } from "@/lib/types";
 import {
-  formatMovieRuntime,
-  formatReleaseDate,
-  isUpcomingRelease,
-} from "@/lib/types";
+  Bookmark,
+  BookMarked,
+  BookOpen,
+  Check,
+  Star,
+} from "lucide-react";
+import type { BookStatus, GoogleBookResult, UserBook } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATUS_BAR: Record<
-  MovieStatus,
+  BookStatus,
   { label: string; bar: string; ring: string; Icon: typeof Check }
 > = {
   wishlist: {
@@ -22,34 +23,33 @@ const STATUS_BAR: Record<
   },
   owned: {
     label: "En tu biblioteca",
-    bar: "bg-rose-500 text-white",
-    ring: "ring-2 ring-rose-500/70 border-rose-500/40",
-    Icon: Bookmark,
+    bar: "bg-teal-600 text-white",
+    ring: "ring-2 ring-teal-500/70 border-teal-500/40",
+    Icon: BookOpen,
   },
-  watching: {
-    label: "La estás viendo",
+  reading: {
+    label: "Lo estás leyendo",
     bar: "bg-sky-500 text-white",
     ring: "ring-2 ring-sky-500/70 border-sky-500/40",
-    Icon: Check,
+    Icon: BookOpen,
   },
-  watched: {
-    label: "Ya la has visto",
+  read: {
+    label: "Ya lo has leído",
     bar: "bg-emerald-600 text-white",
     ring: "ring-2 ring-emerald-500/70 border-emerald-500/40",
     Icon: Check,
   },
 };
 
-export function RecommendedMovieCard({
-  movie,
+export function RecommendedBookCard({
+  book,
   existing,
   onClick,
 }: {
-  movie: TmdbMovieResult;
-  existing?: UserMovie | null;
+  book: GoogleBookResult;
+  existing?: UserBook | null;
   onClick: () => void;
 }) {
-  const upcoming = isUpcomingRelease(movie.released);
   const statusMeta = existing ? STATUS_BAR[existing.status] : null;
   const StatusIcon = statusMeta?.Icon;
 
@@ -65,10 +65,10 @@ export function RecommendedMovieCard({
       )}
     >
       <div className="relative aspect-[2/3] w-full bg-[var(--surface-3)]">
-        {movie.coverUrl ? (
+        {book.coverUrl ? (
           <Image
-            src={movie.coverUrl}
-            alt={movie.title}
+            src={book.coverUrl}
+            alt={book.title}
             fill
             className={cn(
               "object-cover transition-transform duration-500 group-hover:scale-105",
@@ -79,13 +79,13 @@ export function RecommendedMovieCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--muted)]">
-            <Clapperboard className="h-8 w-8 opacity-40" />
+            <BookMarked className="h-8 w-8 opacity-40" />
           </div>
         )}
-        {movie.voteAverage != null && movie.voteAverage > 0 ? (
+        {book.averageRating != null && book.averageRating > 0 ? (
           <span className="absolute left-2 top-2 inline-flex items-center gap-0.5 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
             <Star className="h-3 w-3 fill-current" />
-            {movie.voteAverage.toFixed(1)}
+            {book.averageRating.toFixed(1)}
           </span>
         ) : null}
         {statusMeta && StatusIcon ? (
@@ -102,21 +102,14 @@ export function RecommendedMovieCard({
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
-          {movie.title}
+          {book.title}
         </h3>
         <p className="line-clamp-1 text-xs text-[var(--muted)]">
-          {upcoming
-            ? formatReleaseDate(movie.released)
-              ? `Estreno ${formatReleaseDate(movie.released)}`
-              : "Próximo estreno"
-            : [
-                movie.released?.slice(0, 4),
-                movie.directors[0] || movie.genres.slice(0, 2).join(", ") || null,
-                formatMovieRuntime(movie.runtime),
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Sin datos"}
+          {book.authors.join(", ")}
         </p>
+        {book.totalPages ? (
+          <p className="text-[10px] text-[var(--muted)]">{book.totalPages} pág.</p>
+        ) : null}
       </div>
     </button>
   );

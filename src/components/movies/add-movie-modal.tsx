@@ -21,7 +21,8 @@ import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { MovieTrailerButton } from "@/components/movies/movie-trailer-button";
 import { createClient } from "@/lib/supabase/client";
 import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
-import { isUpcomingRelease } from "@/lib/types";
+import { isUpcomingRelease, serializeMovieProviders } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -65,12 +66,13 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
     const q = query.trim();
     if (q.length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
-      setSearching(true);
       setError(null);
       try {
         const res = await fetch(
@@ -86,8 +88,9 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Error de búsqueda");
+        setResults([]);
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
     }, 350);
 
@@ -131,7 +134,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
         directors: enriched.directors,
         cover_url: enriched.coverUrl,
         genres: enriched.genres,
-        providers: enriched.providers,
+        providers: serializeMovieProviders(enriched.providers),
         released: enriched.released,
         runtime: enriched.runtime,
         vote_average: enriched.voteAverage,
@@ -321,7 +324,11 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
 
             <Button
               type="submit"
-              className="w-full"
+              className={cn(
+                "w-full",
+                destination === "wishlist" &&
+                  "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+              )}
               disabled={!destination || saving}
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}

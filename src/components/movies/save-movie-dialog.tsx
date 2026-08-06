@@ -17,9 +17,11 @@ import {
 } from "@/components/movies/movie-destination-fields";
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { MovieTrailerButton } from "@/components/movies/movie-trailer-button";
+import { MovieProviderLogos } from "@/components/movies/movie-provider-logos";
 import { createClient } from "@/lib/supabase/client";
 import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
-import { isUpcomingRelease } from "@/lib/types";
+import { isUpcomingRelease, serializeMovieProviders } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   movie: TmdbMovieResult | null;
@@ -83,7 +85,7 @@ export function SaveMovieDialog({
         directors: enriched.directors,
         cover_url: enriched.coverUrl,
         genres: enriched.genres,
-        providers: enriched.providers,
+        providers: serializeMovieProviders(enriched.providers),
         released: enriched.released,
         runtime: enriched.runtime,
         vote_average: enriched.voteAverage,
@@ -184,9 +186,11 @@ export function SaveMovieDialog({
               </p>
             ) : null}
             {movie.providers.length > 0 ? (
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {movie.providers.slice(0, 4).join(" · ")}
-              </p>
+              <MovieProviderLogos
+                providers={movie.providers}
+                limit={4}
+                className="mt-1"
+              />
             ) : null}
             <div className="mt-3">
               <MovieTrailerButton
@@ -223,7 +227,11 @@ export function SaveMovieDialog({
 
         <Button
           type="submit"
-          className="w-full"
+          className={cn(
+            "w-full",
+            destination === "wishlist" &&
+              "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+          )}
           disabled={!canSave || saving || done}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}

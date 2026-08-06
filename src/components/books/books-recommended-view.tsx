@@ -3,38 +3,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
-import { MoviesHeader } from "@/components/layout/movies-header";
-import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
-import { RecommendedMovieCard } from "@/components/movies/recommended-movie-card";
-import { SaveMovieDialog } from "@/components/movies/save-movie-dialog";
+import { AppHeader } from "@/components/layout/app-header";
+import { EditBookDialog } from "@/components/books/edit-book-dialog";
+import { RecommendedBookCard } from "@/components/books/recommended-book-card";
+import { SaveBookDialog } from "@/components/books/save-book-dialog";
 import { createClient } from "@/lib/supabase/client";
 import {
-  deriveTopGenreNames,
-  libraryTmdbIds,
-} from "@/lib/movie-tastes";
-import type { TmdbMovieResult, UserMovie } from "@/lib/types";
-import { parseMovieProviders } from "@/lib/types";
+  deriveTopAuthors,
+  libraryBookTitles,
+  libraryGoogleBooksIds,
+} from "@/lib/book-tastes";
+import type { GoogleBookResult, UserBook } from "@/lib/types";
 
-export function MoviesRecommendedView({
+export function BooksRecommendedView({
   userId,
   email,
 }: {
   userId: string;
   email: string | null;
 }) {
-  const [library, setLibrary] = useState<UserMovie[]>([]);
-  const [results, setResults] = useState<TmdbMovieResult[]>([]);
-  const [tasteGenres, setTasteGenres] = useState<string[]>([]);
+  const [library, setLibrary] = useState<UserBook[]>([]);
+  const [results, setResults] = useState<GoogleBookResult[]>([]);
+  const [tasteAuthors, setTasteAuthors] = useState<string[]>([]);
   const [loadingLib, setLoadingLib] = useState(true);
   const [loadingRec, setLoadingRec] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedNew, setSelectedNew] = useState<TmdbMovieResult | null>(null);
-  const [editing, setEditing] = useState<UserMovie | null>(null);
+  const [selectedNew, setSelectedNew] = useState<GoogleBookResult | null>(null);
+  const [editing, setEditing] = useState<UserBook | null>(null);
 
-  const libraryByTmdbId = useMemo(() => {
-    const map = new Map<number, UserMovie>();
-    for (const m of library) {
-      if (m.tmdb_id != null) map.set(m.tmdb_id, m);
+  const libraryByGoogleId = useMemo(() => {
+    const map = new Map<string, UserBook>();
+    for (const b of library) {
+      if (b.google_books_id) map.set(b.google_books_id, b);
     }
     return map;
   }, [library]);
@@ -42,17 +42,10 @@ export function MoviesRecommendedView({
   const loadLibrary = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
-      .from("user_movies")
+      .from("user_books")
       .select("*")
       .eq("user_id", userId);
-    if (data) {
-      setLibrary(
-        (data as UserMovie[]).map((m) => ({
-          ...m,
-          providers: parseMovieProviders(m.providers),
-        })),
-      );
-    }
+    if (data) setLibrary(data as UserBook[]);
     setLoadingLib(false);
   }, [userId]);
 
@@ -63,31 +56,40 @@ export function MoviesRecommendedView({
   useEffect(() => {
     if (loadingLib) return;
 
-    const genres = deriveTopGenreNames(library, 3);
-    const exclude = libraryTmdbIds(library);
+    const authors = deriveTopAuthors(library, 3);
+    const exclude = libraryGoogleBooksIds(library);
+    const titles = libraryBookTitles(library);
     const controller = new AbortController();
 
     async function load() {
+      if (!authors.length) {
+        setResults([]);
+        setTasteAuthors([]);
+        setLoadingRec(false);
+        return;
+      }
+
       setLoadingRec(true);
       setError(null);
       try {
         const params = new URLSearchParams({
           limit: "24",
+          authors: authors.join("|||"),
           exclude: exclude.join(","),
+          titles: titles.join("|||"),
         });
-        if (genres.length) params.set("genres", genres.join(","));
 
-        const res = await fetch(`/api/movies/recommended?${params}`, {
+        const res = await fetch(`/api/books/recommended?${params}`, {
           signal: controller.signal,
         });
         const data = (await res.json()) as {
-          results?: TmdbMovieResult[];
-          genres?: string[];
+          results?: GoogleBookResult[];
+          authors?: string[];
           error?: string;
         };
         if (!res.ok) throw new Error(data.error ?? "Error al recomendar");
         setResults(data.results ?? []);
-        setTasteGenres(data.genres ?? genres);
+        setTasteAuthors(data.authors ?? authors);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Error");
@@ -101,28 +103,28 @@ export function MoviesRecommendedView({
     return () => controller.abort();
   }, [library, loadingLib]);
 
-  function handleClick(movie: TmdbMovieResult) {
-    const existing = libraryByTmdbId.get(movie.tmdbId);
+  function handleClick(book: GoogleBookResult) {
+    const existing = libraryByGoogleId.get(book.googleBooksId);
     if (existing) {
       setEditing(existing);
       return;
     }
-    setSelectedNew(movie);
+    setSelectedNew(book);
   }
 
   const loading = loadingLib || loadingRec;
 
   return (
     <div className="min-h-screen">
-      <MoviesHeader email={email} />
+      <AppHeader email={email} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <Link
-          href="/movies"
+          href="/library"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver a películas
+          Volver a biblioteca
         </Link>
 
         <div className="mb-6">
@@ -131,9 +133,9 @@ export function MoviesRecommendedView({
             Recomendados
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            {tasteGenres.length > 0
-              ? `Según tus gustos · ${tasteGenres.join(", ")} · nota TMDB ≥ 7`
-              : "Películas bien valoradas en TMDB · nota ≥ 7"}
+            {tasteAuthors.length > 0
+              ? `Según tus autores · ${tasteAuthors.join(", ")}`
+              : "Añade libros a tu biblioteca o wishlist para afinar recomendaciones"}
           </p>
         </div>
 
@@ -150,25 +152,25 @@ export function MoviesRecommendedView({
           </div>
         ) : results.length === 0 ? (
           <p className="py-16 text-center text-[var(--muted)]">
-            No hay recomendaciones ahora mismo. Añade películas a tu biblioteca
-            para afinar los gustos.
+            No hay recomendaciones ahora mismo. Añade libros a tu biblioteca o
+            wishlist para afinar los gustos.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">
-            {results.map((movie) => (
-              <RecommendedMovieCard
-                key={movie.tmdbId}
-                movie={movie}
-                existing={libraryByTmdbId.get(movie.tmdbId)}
-                onClick={() => handleClick(movie)}
+            {results.map((book) => (
+              <RecommendedBookCard
+                key={book.googleBooksId}
+                book={book}
+                existing={libraryByGoogleId.get(book.googleBooksId)}
+                onClick={() => handleClick(book)}
               />
             ))}
           </div>
         )}
       </main>
 
-      <SaveMovieDialog
-        movie={selectedNew}
+      <SaveBookDialog
+        book={selectedNew}
         open={!!selectedNew}
         onOpenChange={(o) => {
           if (!o) setSelectedNew(null);
@@ -176,8 +178,8 @@ export function MoviesRecommendedView({
         userId={userId}
         onSaved={loadLibrary}
       />
-      <EditMovieDialog
-        movie={editing}
+      <EditBookDialog
+        book={editing}
         open={!!editing}
         onOpenChange={(o) => {
           if (!o) setEditing(null);

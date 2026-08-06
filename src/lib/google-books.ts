@@ -224,3 +224,101 @@ export async function searchGoogleBooks(
 
   return ranked.map(({ _score: _ignored, hasIsbn: _isbn, ...book }) => book);
 }
+
+function normalizeTitleKey(text: string) {
+  return normalize(text)
+    .replace(/\b(the|el|la|los|las|un|una|a|an)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Recomendaciones aproximadas: más libros de tus autores favoritos
+ * (Google Books no tiene endpoint nativo de similares).
+ */
+export async function searchRecommendedBooks({
+  authors,
+  excludeIds = [],
+  excludeTitles = [],
+  limit = 16,
+}: {
+  authors: string[];
+  excludeIds?: string[];
+  excludeTitles?: string[];
+  limit?: number;
+}): Promise<GoogleBookResult[]> {
+  const uniqueAuthors = [...new Set(authors.map((a) => a.trim()).filter(Boolean))];
+  if (!uniqueAuthors.length) return [];
+
+  const apiKey = process.env.GOOGLE_BOOKS_API_KEY;
+  const excludeIdSet = new Set(excludeIds.filter(Boolean));
+  const excludeTitleSet = new Set(
+    excludeTitles.map(normalizeTitleKey).filter(Boolean),
+  );
+  const perAuthor = Math.min(20, Math.max(8, Math.ceil(limit / uniqueAuthors.length) + 6));
+
+  const batches = await Promise.all(
+    uniqueAuthors.map(async (author) => {
+      const q = `inauthor:${escapeQueryTerm(author)}`;
+      const params = new URLSearchParams({
+        q,
+        maxResults: String(perAuthor),
+        printType: "books",
+        orderBy: "relevance",
+      });
+      if (apiKey) params.set("key", apiKey);
+
+      const data = await fetchGoogleBooks(
+        `https://www.googleapis.com/books/v1/volumes?${params.toString()}`,
+      );
+      return (data.items ?? []).map(mapVolume);
+    }),
+  );
+
+  const byId = new Map<string, ReturnType<typeof mapVolume>>();
+  for (const book of batches.flat()) {
+    if (excludeIdSet.has(book.googleBooksId)) continue;
+    if (excludeTitleSet.has(normalizeTitleKey(book.title))) continue;
+    if (!byId.has(book.googleBooksId)) byId.set(book.googleBooksId, book);
+  }
+
+  const authorNeedles = uniqueAuthors.map((a) => normalize(a));
+
+  const ranked = [...byId.values()]
+    .map((book) => {
+      const authorsNorm = normalize(book.authors.join(" "));
+      let score = 0;
+      score += Math.min(400, Math.log10((book.ratingsCount ?? 0) + 1) * 180);
+      score += (book.averageRating ?? 0) * 30;
+      if (book.coverUrl) score += 100;
+      if (book.hasIsbn) score += 60;
+      if (book.authors[0] !== "Autor desconocido") score += 40;
+
+      const pages = book.totalPages;
+      if (pages && pages >= 80 && pages <= 1200) score += 50;
+      else if (pages && pages < 30) score -= 40;
+
+      const cats = normalize((book.categories ?? []).join(" "));
+      if (FICTION_HINT.test(cats)) score += 120;
+      if (NON_FICTION_NOISE.test(book.title) || NON_FICTION_NOISE.test(cats)) {
+        score -= 400;
+      }
+
+      for (const needle of authorNeedles) {
+        if (authorsNorm.includes(needle) || needle.includes(authorsNorm)) {
+          score += 200;
+          break;
+        }
+      }
+
+      if (!book.coverUrl && (book.ratingsCount ?? 0) === 0) score -= 150;
+
+      return { ...book, _score: score };
+    })
+    .filter((book) => book._score > -50)
+    .sort((a, b) => b._score - a._score)
+    .slice(0, limit);
+
+  return ranked.map(({ _score: _ignored, hasIsbn: _isbn, ...book }) => book);
+}
+

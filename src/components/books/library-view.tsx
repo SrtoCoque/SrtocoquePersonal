@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Plus } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { AddBookModal } from "@/components/books/add-book-modal";
@@ -8,21 +9,33 @@ import { BookCard } from "@/components/books/book-card";
 import { BookSection } from "@/components/books/book-section";
 import { CurrentlyReading } from "@/components/books/currently-reading";
 import { EditBookDialog } from "@/components/books/edit-book-dialog";
+import { RecommendedBooksSection } from "@/components/books/recommended-books-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import type { BookStatus, UserBook } from "@/lib/types";
+import type { UserBook } from "@/lib/types";
 import { isOnShelf } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "shelf" | BookStatus;
+type Filter = "all" | "wishlist" | "shelf";
+type ShelfSubFilter = "all" | "owned" | "reading" | "read";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "wishlist", label: "Wishlist" },
-  { id: "shelf", label: "Estantería" },
+  { id: "shelf", label: "Biblioteca" },
+];
+
+const SHELF_SUBFILTERS: { id: ShelfSubFilter; label: string }[] = [
+  { id: "all", label: "Todos" },
+  { id: "owned", label: "Sin empezar" },
   { id: "reading", label: "Leyendo" },
   { id: "read", label: "Leídos" },
 ];
+
+function parseFilter(raw: string | null): Filter {
+  if (raw === "wishlist" || raw === "shelf") return raw;
+  return "all";
+}
 
 export function LibraryView({
   userId,
@@ -31,9 +44,15 @@ export function LibraryView({
   userId: string;
   email: string | null;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [books, setBooks] = useState<UserBook[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(() =>
+    parseFilter(searchParams.get("filter")),
+  );
+  const [shelfSubFilter, setShelfSubFilter] = useState<ShelfSubFilter>("all");
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<UserBook | null>(null);
 
@@ -53,6 +72,26 @@ export function LibraryView({
     loadBooks();
   }, [loadBooks]);
 
+  useEffect(() => {
+    const next = parseFilter(searchParams.get("filter"));
+    setFilter(next);
+    if (next === "shelf") setShelfSubFilter("all");
+  }, [searchParams]);
+
+  function setFilterAndUrl(next: Filter, shelfSub: ShelfSubFilter = "all") {
+    setFilter(next);
+    if (next === "shelf") setShelfSubFilter(shelfSub);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("filter");
+    else params.set("filter", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
+  function goToShelf(sub: ShelfSubFilter = "all") {
+    setFilterAndUrl("shelf", sub);
+  }
+
   const readingBooks = useMemo(
     () => books.filter((b) => b.status === "reading"),
     [books],
@@ -70,16 +109,20 @@ export function LibraryView({
 
   const filtered = useMemo(() => {
     if (filter === "all") return books;
-    if (filter === "shelf") return books.filter((b) => isOnShelf(b.status));
-    return books.filter((b) => b.status === filter);
-  }, [books, filter]);
+    if (filter === "wishlist") {
+      return books.filter((b) => b.status === "wishlist");
+    }
+    const onShelf = books.filter((b) => isOnShelf(b.status));
+    if (shelfSubFilter === "all") return onShelf;
+    return onShelf.filter((b) => b.status === shelfSubFilter);
+  }, [books, filter, shelfSubFilter]);
 
   return (
     <div className="min-h-screen">
       <AppHeader email={email} onAddBook={() => setAddOpen(true)} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
               Biblioteca
@@ -90,22 +133,44 @@ export function LibraryView({
             </p>
           </div>
 
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFilter(f.id)}
-                className={cn(
-                  "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
-                  filter === f.id
-                    ? "bg-[var(--accent)] text-[var(--accent-fg)] font-medium"
-                    : "text-[var(--muted)] hover:text-[var(--foreground)]",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex min-w-0 flex-col gap-2 sm:items-end">
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilterAndUrl(f.id)}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    filter === f.id
+                      ? "bg-[var(--accent)] text-[var(--accent-fg)] font-medium"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {filter === "shelf" ? (
+              <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-1">
+                {SHELF_SUBFILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setShelfSubFilter(f.id)}
+                    className={cn(
+                      "shrink-0 rounded-lg px-2.5 py-1 text-xs transition-colors sm:text-sm",
+                      shelfSubFilter === f.id
+                        ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -148,20 +213,27 @@ export function LibraryView({
                 title="Wishlist"
                 subtitle="Libros que quieres conseguir"
                 books={wishlistBooks}
-                limit={8}
-                onSeeMore={() => setFilter("wishlist")}
+                limit={12}
+                onSeeMore={() => setFilterAndUrl("wishlist")}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía. Añade libros que te apetezca conseguir."
               />
 
               <BookSection
-                title="Estantería"
+                title="Biblioteca"
                 subtitle="Todo lo que ya tienes (sin empezar, leyendo o leído)"
                 books={shelfBooks}
-                limit={8}
-                onSeeMore={() => setFilter("shelf")}
+                limit={12}
+                onSeeMore={() => goToShelf("all")}
                 onEdit={setEditing}
-                emptyLabel="Aún no has añadido libros a tu estantería."
+                emptyLabel="Aún no has añadido libros a tu biblioteca."
+              />
+
+              <RecommendedBooksSection
+                userId={userId}
+                books={books}
+                onLibraryChange={loadBooks}
+                limit={12}
               />
             </div>
           )
@@ -174,26 +246,13 @@ export function LibraryView({
             <Button
               className="mt-5"
               variant="secondary"
-              onClick={() => setFilter("all")}
+              onClick={() => setFilterAndUrl("all")}
             >
               Volver a Todos
             </Button>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-[var(--muted)]">
-                {filtered.length}{" "}
-                {filtered.length === 1 ? "resultado" : "resultados"}
-              </p>
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className="text-sm text-[var(--accent)] hover:underline"
-              >
-                Ver inicio
-              </button>
-            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
               {filtered.map((book) => (
                 <BookCard

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Bookmark, Check, Clapperboard, Loader2, Search, Star } from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
+import { MovieProviderLogos } from "@/components/movies/movie-provider-logos";
 import { SaveMovieDialog } from "@/components/movies/save-movie-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import {
   formatMovieRuntime,
   formatReleaseDate,
   isUpcomingRelease,
+  parseMovieProviders,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -62,7 +64,9 @@ export function MoviesSearchView({
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<TmdbMovieResult[]>([]);
   const [library, setLibrary] = useState<UserMovie[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(
+    () => initialQuery.trim().length >= 2,
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedNew, setSelectedNew] = useState<TmdbMovieResult | null>(null);
   const [editing, setEditing] = useState<UserMovie | null>(null);
@@ -81,7 +85,14 @@ export function MoviesSearchView({
       .from("user_movies")
       .select("*")
       .eq("user_id", userId);
-    if (data) setLibrary(data as UserMovie[]);
+    if (data) {
+      setLibrary(
+        (data as UserMovie[]).map((m) => ({
+          ...m,
+          providers: parseMovieProviders(m.providers),
+        })),
+      );
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -96,6 +107,7 @@ export function MoviesSearchView({
     const q = initialQuery.trim();
     if (q.length < 2) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -119,7 +131,7 @@ export function MoviesSearchView({
         setError(err instanceof Error ? err.message : "Error de búsqueda");
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     run();
@@ -212,16 +224,7 @@ export function MoviesSearchView({
               {results.map((movie) => {
                 const existing = libraryByTmdbId.get(movie.tmdbId);
                 const upcoming = isUpcomingRelease(movie.released);
-                const inLib = existing
-                  ? upcoming
-                    ? {
-                        label: "Próximo estreno · guardada",
-                        bar: "bg-orange-500 text-white",
-                        ring: "ring-2 ring-orange-500/70 border-orange-500/40",
-                        Icon: Bookmark,
-                      }
-                    : IN_LIBRARY[existing.status]
-                  : null;
+                const inLib = existing ? IN_LIBRARY[existing.status] : null;
                 const StatusIcon = inLib?.Icon;
 
                 return (
@@ -257,11 +260,11 @@ export function MoviesSearchView({
                       {inLib && StatusIcon ? (
                         <div
                           className={cn(
-                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-2.5 text-center text-xs font-semibold leading-tight shadow-lg sm:text-sm",
+                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
                             inLib.bar,
                           )}
                         >
-                          <StatusIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="line-clamp-1">{inLib.label}</span>
                         </div>
                       ) : null}
@@ -294,9 +297,11 @@ export function MoviesSearchView({
                         ) : null}
                       </div>
                       {movie.providers.length > 0 ? (
-                        <p className="line-clamp-1 text-[10px] text-[var(--muted)]">
-                          {movie.providers.slice(0, 3).join(" · ")}
-                        </p>
+                        <MovieProviderLogos
+                          providers={movie.providers}
+                          limit={3}
+                          className="mt-0.5"
+                        />
                       ) : null}
                     </div>
                   </button>

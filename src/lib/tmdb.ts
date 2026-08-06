@@ -1,8 +1,9 @@
-import type { TmdbMovieResult } from "@/lib/types";
+import type { MovieProvider, TmdbMovieResult } from "@/lib/types";
 
 const TMDB_LANG = "es-ES";
 const TMDB_WATCH_REGION = "ES";
 const POSTER_BASE = "https://image.tmdb.org/t/p/w500";
+const LOGO_BASE = "https://image.tmdb.org/t/p/w45";
 
 type TmdbMovie = {
   id: number;
@@ -54,7 +55,11 @@ type TmdbVideo = {
   iso_639_1?: string;
 };
 
-type TmdbProvider = { provider_name?: string };
+type TmdbProvider = {
+  provider_name?: string;
+  logo_path?: string | null;
+  provider_id?: number;
+};
 
 type TmdbWatchProviders = {
   results?: Record<
@@ -83,23 +88,36 @@ function posterUrl(path: string | null | undefined): string | null {
   return `${POSTER_BASE}${path}`;
 }
 
-function extractProviders(data: TmdbDetails): string[] {
+function providerLogoUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  return `${LOGO_BASE}${path}`;
+}
+
+function extractProviders(data: TmdbDetails): MovieProvider[] {
   const region =
     data["watch/providers"]?.results?.[TMDB_WATCH_REGION] ??
     data["watch/providers"]?.results?.ES;
   if (!region) return [];
 
-  const names = [
+  const list = [
     ...(region.flatrate ?? []),
     ...(region.free ?? []),
     ...(region.ads ?? []),
     ...(region.rent ?? []),
     ...(region.buy ?? []),
-  ]
-    .map((p) => p.provider_name)
-    .filter((n): n is string => Boolean(n));
+  ];
 
-  return [...new Set(names)].slice(0, 6);
+  const byName = new Map<string, MovieProvider>();
+  for (const p of list) {
+    const name = p.provider_name?.trim();
+    if (!name || byName.has(name)) continue;
+    byName.set(name, {
+      name,
+      logoUrl: providerLogoUrl(p.logo_path),
+    });
+  }
+
+  return [...byName.values()].slice(0, 6);
 }
 
 function extractYoutubeTrailerKey(data: TmdbDetails): string | null {
@@ -436,6 +454,77 @@ async function resolveGenreIds(
     if (id != null && !ids.includes(id)) ids.push(id);
   }
   return ids;
+}
+
+/**
+ * Próximos estrenos en cines (España), vía TMDB /movie/upcoming + region=ES.
+ * No requiere que el usuario los tenga en wishlist.
+ */
+export async function fetchUpcomingTheatricalMovies({
+  limit = 16,
+}: {
+  limit?: number;
+} = {}): Promise<TmdbMovieResult[]> {
+  const apiKey = process.env.TMDB_API_KEY;
+  if (!apiKey) throw new Error("Falta TMDB_API_KEY");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const target = Math.min(40, Math.max(1, limit));
+  const collected: TmdbMovie[] = [];
+  const seen = new Set<number>();
+
+  for (let page = 1; page <= 2 && collected.length < target * 2; page++) {
+    const params = new URLSearchParams({
+      api_key: apiKey,
+      language: TMDB_LANG,
+      region: TMDB_WATCH_REGION,
+      page: String(page),
+    });
+
+    const data = await fetchTmdb<TmdbSearchResponse>(
+      `https://api.themoviedb.org/3/movie/upcoming?${params.toString()}`,
+    );
+
+    for (const item of data.results ?? []) {
+      if (!item.id || seen.has(item.id)) continue;
+      const day = (item.release_date ?? "").slice(0, 10);
+      if (!day || day < today) continue;
+      seen.add(item.id);
+      collected.push(item);
+      if (collected.length >= target * 2) break;
+    }
+
+    if ((data.results ?? []).length === 0) break;
+  }
+
+  collected.sort((a, b) =>
+    (a.release_date ?? "").localeCompare(b.release_date ?? ""),
+  );
+
+  const slice = collected.slice(0, target);
+  const enriched = await Promise.all(
+    slice.map(async (item) => {
+      const base = mapSearchMovie(item);
+      const { _score: _, ...movie } = base;
+      try {
+        const details = await getTmdbMovieDetails(item.id);
+        return {
+          ...movie,
+          ...details,
+          // Priorizar fecha regional del listado upcoming
+          released: movie.released ?? details.released,
+          coverUrl: details.coverUrl ?? movie.coverUrl,
+          title: details.title || movie.title,
+        };
+      } catch {
+        return movie;
+      }
+    }),
+  );
+
+  return enriched.sort((a, b) =>
+    (a.released ?? "").localeCompare(b.released ?? ""),
+  );
 }
 
 /**

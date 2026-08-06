@@ -138,7 +138,7 @@ export function BookDestinationFields({
             className={cn(
               "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
               destination === "wishlist"
-                ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                ? "border-amber-500 bg-amber-500/15"
                 : "border-[var(--border)] hover:bg-[var(--surface-2)]",
             )}
           >
@@ -146,11 +146,19 @@ export function BookDestinationFields({
               className={cn(
                 "h-4 w-4",
                 destination === "wishlist"
-                  ? "text-[var(--accent)]"
+                  ? "text-amber-600 dark:text-amber-300"
                   : "text-[var(--muted)]",
               )}
             />
-            <span className="text-sm font-medium">Wishlist</span>
+            <span
+              className={cn(
+                "text-sm font-medium",
+                destination === "wishlist" &&
+                  "text-amber-700 dark:text-amber-300",
+              )}
+            >
+              Wishlist
+            </span>
             <span className="text-[11px] leading-snug text-[var(--muted)]">
               Lo quiero, pero aún no lo tengo
             </span>
@@ -177,7 +185,7 @@ export function BookDestinationFields({
                   : "text-[var(--muted)]",
               )}
             />
-            <span className="text-sm font-medium">Estantería</span>
+            <span className="text-sm font-medium">Biblioteca</span>
             <span className="text-[11px] leading-snug text-[var(--muted)]">
               Ya lo tengo en casa
             </span>

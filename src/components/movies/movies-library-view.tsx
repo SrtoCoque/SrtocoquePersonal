@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Clapperboard, Plus } from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { AddMovieModal } from "@/components/movies/add-movie-modal";
@@ -8,20 +9,40 @@ import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { MovieCard } from "@/components/movies/movie-card";
 import { MovieSection } from "@/components/movies/movie-section";
 import { RecommendedMoviesSection } from "@/components/movies/recommended-movies-section";
+import { UpcomingMoviesSection } from "@/components/movies/upcoming-movies-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { UserMovie } from "@/lib/types";
-import { isInTheatersRelease, isUpcomingRelease } from "@/lib/types";
+import {
+  isInTheatersRelease,
+  isMovieOnShelf,
+  isUpcomingRelease,
+  parseMovieProviders,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "inTheaters" | "upcoming" | "wishlist" | "watched";
+type Filter = "all" | "shelf" | "inTheaters" | "upcoming" | "wishlist" | "watched";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "wishlist", label: "Wishlist" },
+  { id: "shelf", label: "Biblioteca" },
   { id: "upcoming", label: "Estrenos" },
   { id: "watched", label: "Vistas" },
 ];
+
+function parseFilter(raw: string | null): Filter {
+  if (
+    raw === "shelf" ||
+    raw === "wishlist" ||
+    raw === "upcoming" ||
+    raw === "watched" ||
+    raw === "inTheaters"
+  ) {
+    return raw;
+  }
+  return "all";
+}
 
 export function MoviesLibraryView({
   userId,
@@ -30,9 +51,14 @@ export function MoviesLibraryView({
   userId: string;
   email: string | null;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [movies, setMovies] = useState<UserMovie[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>(() =>
+    parseFilter(searchParams.get("filter")),
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<UserMovie | null>(null);
 
@@ -59,6 +85,7 @@ export function MoviesLibraryView({
       setMovies(
         (data as UserMovie[]).map((m) => ({
           ...m,
+          providers: parseMovieProviders(m.providers),
           times_watched: counts.get(m.id) ?? 0,
         })),
       );
@@ -69,6 +96,19 @@ export function MoviesLibraryView({
   useEffect(() => {
     loadMovies();
   }, [loadMovies]);
+
+  useEffect(() => {
+    setFilter(parseFilter(searchParams.get("filter")));
+  }, [searchParams]);
+
+  function setFilterAndUrl(next: Filter) {
+    setFilter(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("filter");
+    else params.set("filter", next);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const inTheatersMovies = useMemo(
     () =>
@@ -91,6 +131,10 @@ export function MoviesLibraryView({
       ),
     [movies],
   );
+  const shelfMovies = useMemo(
+    () => movies.filter((m) => isMovieOnShelf(m.status)),
+    [movies],
+  );
   const watchedMovies = useMemo(
     () => movies.filter((m) => m.status === "watched"),
     [movies],
@@ -98,6 +142,7 @@ export function MoviesLibraryView({
 
   const filtered = useMemo(() => {
     if (filter === "all") return movies;
+    if (filter === "shelf") return shelfMovies;
     if (filter === "inTheaters") return inTheatersMovies;
     if (filter === "upcoming") return upcomingMovies;
     if (filter === "wishlist") return wishlistMovies;
@@ -105,6 +150,7 @@ export function MoviesLibraryView({
   }, [
     movies,
     filter,
+    shelfMovies,
     inTheatersMovies,
     upcomingMovies,
     wishlistMovies,
@@ -115,8 +161,8 @@ export function MoviesLibraryView({
     <div className="min-h-screen">
       <MoviesHeader email={email} onAddMovie={() => setAddOpen(true)} />
 
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
               Películas
@@ -127,12 +173,12 @@ export function MoviesLibraryView({
             </p>
           </div>
 
-          <div className="flex gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
+          <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 sm:w-auto">
             {FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setFilter(f.id)}
+                onClick={() => setFilterAndUrl(f.id)}
                 className={cn(
                   "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
                   filter === f.id
@@ -163,21 +209,17 @@ export function MoviesLibraryView({
                   Añadir película
                 </Button>
               </div>
-              {upcomingMovies.length > 0 && (
-                <MovieSection
-                  title="Próximos estrenos"
-                  subtitle="Películas guardadas que aún no se han estrenado"
-                  movies={upcomingMovies}
-                  onSeeMore={() => setFilter("upcoming")}
-                  onEdit={setEditing}
-                  emptyLabel=""
-                />
-              )}
+              <UpcomingMoviesSection
+                userId={userId}
+                movies={movies}
+                onLibraryChange={loadMovies}
+                limit={12}
+              />
               <RecommendedMoviesSection
                 userId={userId}
                 movies={movies}
                 onLibraryChange={loadMovies}
-                limit={8}
+                limit={12}
               />
             </div>
           ) : (
@@ -187,32 +229,28 @@ export function MoviesLibraryView({
                   title="En el cine"
                   subtitle="Estrenadas en las últimas dos semanas"
                   movies={inTheatersMovies}
-                  onSeeMore={() => setFilter("inTheaters")}
+                  onSeeMore={() => setFilterAndUrl("inTheaters")}
                   onEdit={setEditing}
                   emptyLabel=""
                 />
               )}
-              {upcomingMovies.length > 0 && (
-                <MovieSection
-                  title="Próximos estrenos"
-                  subtitle="Películas guardadas que aún no se han estrenado"
-                  movies={upcomingMovies}
-                  onSeeMore={() => setFilter("upcoming")}
-                  onEdit={setEditing}
-                  emptyLabel=""
-                />
-              )}
+              <UpcomingMoviesSection
+                userId={userId}
+                movies={movies}
+                onLibraryChange={loadMovies}
+                limit={12}
+              />
               <RecommendedMoviesSection
                 userId={userId}
                 movies={movies}
                 onLibraryChange={loadMovies}
-                limit={8}
+                limit={12}
               />
               <MovieSection
                 title="Wishlist"
                 subtitle="Películas que quieres ver"
                 movies={wishlistMovies}
-                onSeeMore={() => setFilter("wishlist")}
+                onSeeMore={() => setFilterAndUrl("wishlist")}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía."
               />
@@ -220,7 +258,7 @@ export function MoviesLibraryView({
                 title="Vistas"
                 subtitle="Películas que ya has visto"
                 movies={watchedMovies}
-                onSeeMore={() => setFilter("watched")}
+                onSeeMore={() => setFilterAndUrl("watched")}
                 onEdit={setEditing}
                 emptyLabel="Aún no has marcado ninguna como vista."
               />
@@ -234,25 +272,13 @@ export function MoviesLibraryView({
             <Button
               className="mt-5"
               variant="secondary"
-              onClick={() => setFilter("all")}
+              onClick={() => setFilterAndUrl("all")}
             >
               Volver a Todos
             </Button>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm text-[var(--muted)]">
-                {filtered.length} resultados
-              </p>
-              <button
-                type="button"
-                onClick={() => setFilter("all")}
-                className="text-sm text-[var(--accent)] hover:underline"
-              >
-                Ver inicio
-              </button>
-            </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
               {filtered.map((movie) => (
                 <MovieCard key={movie.id} movie={movie} onEdit={setEditing} />

@@ -1,17 +1,40 @@
 "use client";
 
 import Image from "next/image";
-import { BookMarked, Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  Bookmark,
+  BookMarked,
+  BookOpen,
+  Check,
+  Star,
+} from "lucide-react";
 import type { BookStatus, UserBook } from "@/lib/types";
-import { STATUS_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<BookStatus, string> = {
-  wishlist: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  owned: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  reading: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  read: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+const STATUS_BAR: Record<
+  BookStatus,
+  { label: string; bar: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu biblioteca",
+    bar: "bg-teal-600 text-white",
+    Icon: BookOpen,
+  },
+  reading: {
+    label: "Lo estás leyendo",
+    bar: "bg-sky-500 text-white",
+    Icon: BookOpen,
+  },
+  read: {
+    label: "Ya lo has leído",
+    bar: "bg-emerald-600 text-white",
+    Icon: Check,
+  },
 };
 
 type Props = {
@@ -24,6 +47,8 @@ export function BookCard({ book, onEdit }: Props) {
     book.total_pages && book.total_pages > 0
       ? Math.min(100, Math.round((book.pages_read / book.total_pages) * 100))
       : null;
+  const statusMeta = STATUS_BAR[book.status];
+  const StatusIcon = statusMeta.Icon;
 
   return (
     <button
@@ -37,7 +62,7 @@ export function BookCard({ book, onEdit }: Props) {
             src={book.cover_url}
             alt={book.title}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover brightness-[0.85] transition-transform duration-500 group-hover:scale-105"
             sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 200px"
             unoptimized
           />
@@ -47,36 +72,60 @@ export function BookCard({ book, onEdit }: Props) {
             <span className="text-center text-xs">Sin portada</span>
           </div>
         )}
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
+            statusMeta.bar,
+          )}
+        >
+          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="line-clamp-1">{statusMeta.label}</span>
+        </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <Badge className={cn("w-fit", STATUS_STYLE[book.status])}>
-          {STATUS_LABELS[book.status]}
-        </Badge>
+      <div className="flex flex-1 flex-col gap-1.5 p-3">
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {book.title}
         </h3>
         <p className="line-clamp-1 text-xs text-[var(--muted)]">
-          {book.authors.join(", ")}
+          {book.authors.join(", ") || "Autor desconocido"}
         </p>
+        {book.total_pages && book.total_pages > 0 && book.status !== "reading" ? (
+          <p className="text-[10px] text-[var(--muted)]">
+            {book.total_pages} pág.
+          </p>
+        ) : null}
 
-        {book.status === "reading" && progress !== null && (
+        {book.status === "reading" && progress !== null ? (
           <div className="mt-auto pt-1">
-            <div className="mb-1 flex justify-between text-[10px] text-[var(--muted)]">
+            <div className="mb-0.5 flex justify-between text-[10px] text-[var(--muted)]">
               <span>Progreso</span>
               <span>{progress}%</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-3)]">
-              <div
-                className="h-full rounded-full bg-[var(--accent)] transition-all"
-                style={{ width: `${progress}%` }}
-              />
+            <div className="flex items-center gap-1.5">
+              <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted)]">
+                {book.pages_read}
+              </span>
+              <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--surface-3)]">
+                <div
+                  className="h-full rounded-full bg-[var(--accent)] transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted)]">
+                {book.total_pages}
+              </span>
             </div>
           </div>
-        )}
+        ) : null}
 
         {book.rating ? (
-          <div className="mt-auto flex items-center gap-0.5 pt-1 text-amber-500">
+          <div
+            className={cn(
+              "flex items-center gap-0.5 text-amber-500",
+              book.status !== "reading" && "mt-auto pt-1",
+            )}
+          >
             {Array.from({ length: book.rating }).map((_, i) => (
               <Star key={i} className="h-3 w-3 fill-current" />
             ))}

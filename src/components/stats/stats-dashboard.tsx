@@ -164,7 +164,7 @@ export function StatsDashboard({
               />
               <StatCard
                 icon={Library}
-                label="En la estantería"
+                label="En la biblioteca"
                 value={stats.libraryTotal}
               />
             </div>

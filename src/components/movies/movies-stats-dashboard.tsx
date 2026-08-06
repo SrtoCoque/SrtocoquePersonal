@@ -27,6 +27,7 @@ import {
 } from "@/components/stats/stats-year-filter";
 import { createClient } from "@/lib/supabase/client";
 import type { UserMovie, UserMovieViewing } from "@/lib/types";
+import { parseMovieProviders } from "@/lib/types";
 
 const MONTHS = [
   "Ene",
@@ -124,7 +125,14 @@ export function MoviesStatsDashboard({
         supabase.from("user_movies").select("*").eq("user_id", userId),
         supabase.from("user_movie_viewings").select("*").eq("user_id", userId),
       ]);
-      if (movieData) setMovies(movieData as UserMovie[]);
+      if (movieData) {
+        setMovies(
+          (movieData as UserMovie[]).map((m) => ({
+            ...m,
+            providers: parseMovieProviders(m.providers),
+          })),
+        );
+      }
       if (viewingData) setViewings(viewingData as UserMovieViewing[]);
       setLoading(false);
     }

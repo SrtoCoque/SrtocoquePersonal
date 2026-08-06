@@ -34,7 +34,7 @@ const IN_LIBRARY: Record<
     Icon: Bookmark,
   },
   owned: {
-    label: "En tu estantería",
+    label: "En tu biblioteca",
     bar: "bg-teal-600 text-white",
     ring: "ring-2 ring-teal-500/70 border-teal-500/40",
     Icon: BookOpen,
@@ -66,7 +66,9 @@ export function SearchResultsView({
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<GoogleBookResult[]>([]);
   const [library, setLibrary] = useState<UserBook[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(
+    () => initialQuery.trim().length >= 2,
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedNew, setSelectedNew] = useState<GoogleBookResult | null>(null);
   const [editing, setEditing] = useState<UserBook | null>(null);
@@ -100,6 +102,7 @@ export function SearchResultsView({
     const q = initialQuery.trim();
     if (q.length < 2) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -123,7 +126,7 @@ export function SearchResultsView({
         setError(err instanceof Error ? err.message : "Error de búsqueda");
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     run();
@@ -251,11 +254,11 @@ export function SearchResultsView({
                       {inLib && StatusIcon ? (
                         <div
                           className={cn(
-                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-2.5 text-center text-xs font-semibold leading-tight shadow-lg sm:text-sm",
+                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
                             inLib.bar,
                           )}
                         >
-                          <StatusIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
                           <span className="line-clamp-1">{inLib.label}</span>
                         </div>
                       ) : null}

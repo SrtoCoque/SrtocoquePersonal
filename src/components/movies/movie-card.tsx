@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Clapperboard } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Bookmark, Check, Clapperboard } from "lucide-react";
+import { MovieProviderLogos } from "@/components/movies/movie-provider-logos";
 import type { MovieStatus, UserMovie } from "@/lib/types";
 import {
   formatDaysUntilRelease,
@@ -10,15 +10,33 @@ import {
   formatReleaseDate,
   isInTheatersRelease,
   isUpcomingRelease,
-  MOVIE_STATUS_LABELS,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<MovieStatus, string> = {
-  wishlist: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  owned: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
-  watching: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  watched: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+const STATUS_BAR: Record<
+  MovieStatus,
+  { label: string; bar: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu biblioteca",
+    bar: "bg-rose-500 text-white",
+    Icon: Bookmark,
+  },
+  watching: {
+    label: "La estás viendo",
+    bar: "bg-sky-500 text-white",
+    Icon: Check,
+  },
+  watched: {
+    label: "Ya la has visto",
+    bar: "bg-emerald-600 text-white",
+    Icon: Check,
+  },
 };
 
 export function MovieCard({
@@ -32,6 +50,8 @@ export function MovieCard({
   const upcoming = isUpcomingRelease(movie.released);
   const inTheaters = !upcoming && isInTheatersRelease(movie.released);
   const daysLeft = formatDaysUntilRelease(movie.released);
+  const statusMeta = STATUS_BAR[movie.status];
+  const StatusIcon = statusMeta.Icon;
 
   return (
     <button
@@ -45,7 +65,7 @@ export function MovieCard({
             src={movie.cover_url}
             alt={movie.title}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover brightness-[0.85] transition-transform duration-500 group-hover:scale-105"
             sizes="(max-width:640px) 50vw, 200px"
             unoptimized
           />
@@ -54,23 +74,18 @@ export function MovieCard({
             <Clapperboard className="h-8 w-8 opacity-40" />
           </div>
         )}
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
+            statusMeta.bar,
+          )}
+        >
+          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="line-clamp-1">{statusMeta.label}</span>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <Badge
-          className={cn(
-            "w-fit",
-            inTheaters
-              ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
-              : STATUS_STYLE[movie.status],
-          )}
-        >
-          {upcoming
-            ? daysLeft ?? "Próximo estreno"
-            : inTheaters
-              ? "En el cine"
-              : MOVIE_STATUS_LABELS[movie.status]}
-        </Badge>
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {movie.title}
         </h3>
@@ -96,9 +111,7 @@ export function MovieCard({
                   .join(" · ") || "Sin datos"}
         </p>
         {movie.providers?.length ? (
-          <p className="line-clamp-1 text-[10px] text-[var(--muted)]">
-            {movie.providers.slice(0, 3).join(" · ")}
-          </p>
+          <MovieProviderLogos providers={movie.providers} limit={3} />
         ) : null}
 
         <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">

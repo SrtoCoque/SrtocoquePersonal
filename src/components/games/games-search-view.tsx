@@ -4,23 +4,44 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Gamepad2, Loader2, Search, Star } from "lucide-react";
+import { ArrowLeft, Bookmark, Check, Gamepad2, Loader2, Search, Star } from "lucide-react";
 import { GamesHeader } from "@/components/layout/games-header";
 import { EditGameDialog } from "@/components/games/edit-game-dialog";
 import { SaveGameDialog } from "@/components/games/save-game-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import type { RawgGameResult, UserGame } from "@/lib/types";
-import { GAME_STATUS_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<UserGame["status"], string> = {
-  wishlist: "bg-amber-500/90 text-white",
-  owned: "bg-violet-500/90 text-white",
-  playing: "bg-sky-500/90 text-white",
-  completed: "bg-emerald-500/90 text-white",
+const IN_LIBRARY: Record<
+  UserGame["status"],
+  { label: string; bar: string; ring: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    ring: "ring-2 ring-amber-500/70 border-amber-500/40",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu biblioteca",
+    bar: "bg-violet-600 text-white",
+    ring: "ring-2 ring-violet-500/70 border-violet-500/40",
+    Icon: Gamepad2,
+  },
+  playing: {
+    label: "Lo estás jugando",
+    bar: "bg-sky-500 text-white",
+    ring: "ring-2 ring-sky-500/70 border-sky-500/40",
+    Icon: Gamepad2,
+  },
+  completed: {
+    label: "Ya lo has completado",
+    bar: "bg-emerald-600 text-white",
+    ring: "ring-2 ring-emerald-500/70 border-emerald-500/40",
+    Icon: Check,
+  },
 };
 
 export function GamesSearchView({
@@ -36,7 +57,9 @@ export function GamesSearchView({
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<RawgGameResult[]>([]);
   const [library, setLibrary] = useState<UserGame[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(
+    () => initialQuery.trim().length >= 2,
+  );
   const [error, setError] = useState<string | null>(null);
   const [selectedNew, setSelectedNew] = useState<RawgGameResult | null>(null);
   const [editing, setEditing] = useState<UserGame | null>(null);
@@ -70,6 +93,7 @@ export function GamesSearchView({
     const q = initialQuery.trim();
     if (q.length < 2) {
       setResults([]);
+      setLoading(false);
       return;
     }
 
@@ -93,7 +117,7 @@ export function GamesSearchView({
         setError(err instanceof Error ? err.message : "Error de búsqueda");
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     run();
@@ -185,12 +209,20 @@ export function GamesSearchView({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">
               {results.map((game) => {
                 const existing = libraryByRawgId.get(game.rawgId);
+                const inLib = existing ? IN_LIBRARY[existing.status] : null;
+                const StatusIcon = inLib?.Icon;
+
                 return (
                   <button
                     key={game.rawgId}
                     type="button"
                     onClick={() => handleClick(game)}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40"
+                    className={cn(
+                      "group flex flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5",
+                      inLib
+                        ? inLib.ring
+                        : "border-[var(--border)] hover:border-[var(--accent)]/40",
+                    )}
                   >
                     <div className="relative aspect-[3/4] w-full bg-[var(--surface-3)]">
                       {game.coverUrl ? (
@@ -198,7 +230,10 @@ export function GamesSearchView({
                           src={game.coverUrl}
                           alt={game.title}
                           fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          className={cn(
+                            "object-cover transition-transform duration-500 group-hover:scale-105",
+                            inLib && "brightness-[0.85]",
+                          )}
                           sizes="200px"
                           unoptimized
                         />
@@ -207,16 +242,17 @@ export function GamesSearchView({
                           <Gamepad2 className="h-8 w-8 opacity-40" />
                         </div>
                       )}
-                      {existing && (
-                        <Badge
+                      {inLib && StatusIcon ? (
+                        <div
                           className={cn(
-                            "absolute left-2 top-2 shadow-sm",
-                            STATUS_STYLE[existing.status],
+                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
+                            inLib.bar,
                           )}
                         >
-                          {GAME_STATUS_LABELS[existing.status]}
-                        </Badge>
-                      )}
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="line-clamp-1">{inLib.label}</span>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-1 flex-col gap-1 p-3">
                       <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">

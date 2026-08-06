@@ -18,7 +18,7 @@ const SECTIONS = [
   {
     href: "/library",
     title: "Libros",
-    description: "Tu estantería de lecturas",
+    description: "Tu biblioteca de lecturas",
     icon: BookOpen,
     available: true,
     accent: "from-teal-500/20 to-cyan-500/5",
@@ -61,8 +61,8 @@ export function HomeHub({ email }: { email: string | null }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+      <header className="sticky top-0 z-40 overflow-x-clip border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
+        <div className="mx-auto flex h-14 w-full min-w-0 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
           <div className="flex items-center gap-2 font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)] text-[var(--accent-fg)]">
               <BookOpen className="h-4 w-4" />

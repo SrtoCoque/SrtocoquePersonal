@@ -1,17 +1,34 @@
 "use client";
 
 import Image from "next/image";
-import { Gamepad2, Star } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Bookmark, Check, Gamepad2, Star } from "lucide-react";
 import type { GameStatus, UserGame } from "@/lib/types";
-import { GAME_STATUS_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<GameStatus, string> = {
-  wishlist: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-  owned: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
-  playing: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-  completed: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+const STATUS_BAR: Record<
+  GameStatus,
+  { label: string; bar: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu biblioteca",
+    bar: "bg-violet-600 text-white",
+    Icon: Gamepad2,
+  },
+  playing: {
+    label: "Lo estás jugando",
+    bar: "bg-sky-500 text-white",
+    Icon: Gamepad2,
+  },
+  completed: {
+    label: "Ya lo has completado",
+    bar: "bg-emerald-600 text-white",
+    Icon: Check,
+  },
 };
 
 export function GameCard({
@@ -21,6 +38,9 @@ export function GameCard({
   game: UserGame;
   onEdit: (game: UserGame) => void;
 }) {
+  const statusMeta = STATUS_BAR[game.status];
+  const StatusIcon = statusMeta.Icon;
+
   return (
     <button
       type="button"
@@ -33,7 +53,7 @@ export function GameCard({
             src={game.cover_url}
             alt={game.title}
             fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover brightness-[0.85] transition-transform duration-500 group-hover:scale-105"
             sizes="(max-width:640px) 50vw, 200px"
             unoptimized
           />
@@ -42,12 +62,18 @@ export function GameCard({
             <Gamepad2 className="h-8 w-8 opacity-40" />
           </div>
         )}
+        <div
+          className={cn(
+            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
+            statusMeta.bar,
+          )}
+        >
+          <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+          <span className="line-clamp-1">{statusMeta.label}</span>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <Badge className={cn("w-fit", STATUS_STYLE[game.status])}>
-          {GAME_STATUS_LABELS[game.status]}
-        </Badge>
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {game.title}
         </h3>

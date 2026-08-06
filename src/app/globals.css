@@ -40,6 +40,11 @@
   --font-display: var(--font-display);
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -49,6 +54,16 @@ body {
     radial-gradient(ellipse 60% 40% at 100% 100%, color-mix(in srgb, #38bdf8 8%, transparent), transparent);
   background-attachment: fixed;
   min-height: 100vh;
+  max-width: 100%;
+}
+
+/* iOS Safari: inputs < 16px provocan zoom y la página queda “grande” */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 @keyframes fade-in {
@@ -105,6 +120,7 @@ body {
   background-position: center;
   background-repeat: no-repeat;
   filter: grayscale(0.7) contrast(1.05) brightness(0.85);
+  /* scale dentro del padre con overflow-hidden para no ensanchar el viewport */
   transform: scale(1.02);
 }
 

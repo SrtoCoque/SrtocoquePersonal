@@ -2,13 +2,14 @@
 
 import { ArrowRight } from "lucide-react";
 import { MovieCard } from "@/components/movies/movie-card";
+import { MediaScrollRow } from "@/components/ui/media-scroll-row";
 import type { UserMovie } from "@/lib/types";
 
 export function MovieSection({
   title,
   subtitle,
   movies,
-  limit = 8,
+  limit = 12,
   onSeeMore,
   onEdit,
   emptyLabel,
@@ -56,11 +57,11 @@ export function MovieSection({
           {emptyLabel}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 sm:gap-4">
+        <MediaScrollRow>
           {visible.map((movie) => (
             <MovieCard key={movie.id} movie={movie} onEdit={onEdit} />
           ))}
-        </div>
+        </MediaScrollRow>
       )}
     </section>
   );

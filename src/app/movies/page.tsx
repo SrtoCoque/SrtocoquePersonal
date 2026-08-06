@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MoviesLibraryView } from "@/components/movies/movies-library-view";
@@ -10,5 +11,13 @@ export default async function MoviesPage() {
 
   if (!user) redirect("/login");
 
-  return <MoviesLibraryView userId={user.id} email={user.email ?? null} />;
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen animate-pulse bg-[var(--background)]" />
+      }
+    >
+      <MoviesLibraryView userId={user.id} email={user.email ?? null} />
+    </Suspense>
+  );
 }

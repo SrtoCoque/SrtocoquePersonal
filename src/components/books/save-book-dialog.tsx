@@ -17,6 +17,7 @@ import {
 } from "@/components/books/book-destination-fields";
 import { createClient } from "@/lib/supabase/client";
 import type { GoogleBookResult, ShelfStatus } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Props = {
   book: GoogleBookResult | null;
@@ -118,7 +119,7 @@ export function SaveBookDialog({
     destination === "wishlist"
       ? "Añadir a Wishlist"
       : destination === "shelf"
-        ? "Añadir a la estantería"
+        ? "Añadir a la biblioteca"
         : "Elige una opción";
 
   return (
@@ -189,7 +190,11 @@ export function SaveBookDialog({
 
         <Button
           type="submit"
-          className="w-full"
+          className={cn(
+            "w-full",
+            destination === "wishlist" &&
+              "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+          )}
           disabled={!canSave || saving || done}
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
