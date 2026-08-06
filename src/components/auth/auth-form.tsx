@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpen, Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
         });
         if (authError) throw authError;
         setMessage(
-          "Cuenta creada. Revisa tu correo si necesitas confirmar el email, o inicia sesión.",
+          "Cuenta creada. Si hace falta confirmar el email, revisa tu correo. Si no, inicia sesión.",
         );
       }
     } catch (err) {
@@ -77,7 +77,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       });
       if (authError) throw authError;
       setMagicSent(true);
-      setMessage("Te hemos enviado un enlace mágico. Revisa tu bandeja de entrada.");
+      setMessage("Enlace mágico enviado. Revisa tu bandeja de entrada.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo enviar el enlace");
     } finally {
@@ -86,27 +86,30 @@ export function AuthForm({ mode }: { mode: Mode }) {
   }
 
   return (
-    <div className="w-full max-w-md animate-fade-in">
+    <div className="mx-auto w-full max-w-md animate-fade-in">
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-fg)] shadow-lg shadow-[var(--accent)]/20">
-          <BookOpen className="h-6 w-6" />
-        </div>
-        <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
-          Estantería
+        <p className="auth-sign-eyebrow mb-3 text-[11px] font-medium uppercase tracking-[0.35em] text-[#e0b84a]/80">
+          Bienvenido al
+        </p>
+        <h1 className="auth-sign-title font-[family-name:var(--font-wizard)] text-[2.35rem] leading-none text-[#f3d98a] sm:text-5xl">
+          Callejón Diagon
         </h1>
-        <p className="mt-2 text-[var(--muted)]">
+        <div className="mx-auto mt-3 h-px w-28 bg-gradient-to-r from-transparent via-[#e0b84a] to-transparent" />
+        <p className="mt-4 text-sm text-[#d6c4a3]/85">
           {isLogin
-            ? "Accede a tu biblioteca personal"
-            : "Crea tu cuenta y empieza a registrar lecturas"}
+            ? "Cruza el umbral hacia tu biblioteca mágica"
+            : "Abre tu cuenta y empieza a llenar los estantes"}
         </p>
       </div>
 
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 p-6 backdrop-blur-sm"
+        className="auth-shop-panel space-y-4 rounded-2xl border border-[#e0b84a]/25 bg-[#1a100e]/80 p-6 shadow-[0_0_40px_rgba(224,184,74,0.08)] backdrop-blur-md"
       >
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className="text-[#e8d7b5]">
+            Email
+          </Label>
           <Input
             id="email"
             type="email"
@@ -115,11 +118,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@email.com"
+            className="border-[#e0b84a]/20 bg-[#0f0908]/70 text-[#f5ebd4] placeholder:text-[#a8926f] focus-visible:ring-[#e0b84a]"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Contraseña</Label>
+          <Label htmlFor="password" className="text-[#e8d7b5]">
+            Contraseña
+          </Label>
           <Input
             id="password"
             type="password"
@@ -129,53 +135,62 @@ export function AuthForm({ mode }: { mode: Mode }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mínimo 6 caracteres"
+            className="border-[#e0b84a]/20 bg-[#0f0908]/70 text-[#f5ebd4] placeholder:text-[#a8926f] focus-visible:ring-[#e0b84a]"
           />
         </div>
 
         {error && (
-          <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+          <p className="rounded-lg border border-red-400/20 bg-red-950/40 px-3 py-2 text-sm text-red-300">
             {error}
           </p>
         )}
         {message && (
-          <p className="rounded-lg bg-[var(--accent)]/10 px-3 py-2 text-sm text-[var(--accent)]">
+          <p className="rounded-lg border border-[#e0b84a]/25 bg-[#e0b84a]/10 px-3 py-2 text-sm text-[#f0d78a]">
             {message}
           </p>
         )}
 
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button
+          type="submit"
+          className="w-full bg-[#c8962e] text-[#1a100e] hover:bg-[#e0b84a]"
+          disabled={loading}
+        >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {isLogin ? "Iniciar sesión" : "Crear cuenta"}
+          {isLogin ? "Entrar al callejón" : "Crear cuenta"}
         </Button>
 
         <div className="relative py-1">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-[var(--border)]" />
+            <span className="w-full border-t border-[#e0b84a]/20" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[var(--surface)] px-2 text-[var(--muted)]">o</span>
+            <span className="bg-[#1a100e] px-2 text-[#a8926f]">o</span>
           </div>
         </div>
 
         <Button
           type="button"
           variant="outline"
-          className="w-full"
+          className="w-full border-[#e0b84a]/30 bg-transparent text-[#f0d78a] hover:bg-[#e0b84a]/10 hover:text-[#f5e6b8]"
           disabled={loading || magicSent}
           onClick={handleMagicLink}
         >
-          <Mail className="h-4 w-4" />
-          {magicSent ? "Enlace enviado" : "Entrar con Magic Link"}
+          {magicSent ? (
+            <Mail className="h-4 w-4" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          {magicSent ? "Hechizo enviado" : "Entrar con Magic Link"}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-[var(--muted)]">
+      <p className="mt-6 text-center text-sm text-[#b9a488]">
         {isLogin ? (
           <>
-            ¿No tienes cuenta?{" "}
+            ¿Primera visita?{" "}
             <Link
               href="/register"
-              className="font-medium text-[var(--accent)] hover:underline"
+              className="font-medium text-[#e0b84a] hover:underline"
             >
               Regístrate
             </Link>
@@ -185,9 +200,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
             ¿Ya tienes cuenta?{" "}
             <Link
               href="/login"
-              className="font-medium text-[var(--accent)] hover:underline"
+              className="font-medium text-[#e0b84a] hover:underline"
             >
-              Inicia sesión
+              Entra al callejón
             </Link>
           </>
         )}
