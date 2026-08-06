@@ -134,7 +134,7 @@ export function SearchResultsView({
             Buscar libros
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados por relevancia · si ya lo tienes, se abre editar
+            Busca por título o autor · si ya lo tienes, se abre editar
           </p>
         </div>
 

@@ -128,7 +128,7 @@ export function MoviesHeader({
         open={searchOpen}
         onOpenChange={setSearchOpen}
         searchPath="/movies/search"
-        placeholder="Título de la película..."
+        placeholder="Título o director..."
       />
     </header>
   );

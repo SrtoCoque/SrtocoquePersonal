@@ -175,7 +175,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Añadir película</DialogTitle>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Busca en TMDB (español) o pulsa Buscar / Enter para ver todos
+          Busca por título o director · pulsa Buscar / Enter para ver más
         </p>
       </DialogHeader>
 
@@ -194,7 +194,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Título de la película..."
+                  placeholder="Título o director..."
                   className="pl-9"
                   autoFocus
                 />
@@ -239,10 +239,8 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                       <p className="truncate text-xs text-[var(--muted)]">
                         {[
                           movie.released?.slice(0, 4),
+                          movie.directors[0] ?? null,
                           movie.runtime ? `${movie.runtime} min` : null,
-                          movie.voteAverage
-                            ? `★ ${movie.voteAverage.toFixed(1)}`
-                            : null,
                         ]
                           .filter(Boolean)
                           .join(" · ")}

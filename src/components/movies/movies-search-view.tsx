@@ -160,7 +160,7 @@ export function MoviesSearchView({
             Buscar películas
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados de TMDB · las que ya tienes se marcan con claridad
+            Título o director · las que ya tienes se marcan con claridad
           </p>
         </div>
 
@@ -170,7 +170,7 @@ export function MoviesSearchView({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Título de la película..."
+              placeholder="Título o director..."
               className="pl-9"
               autoFocus
             />
@@ -270,28 +270,18 @@ export function MoviesSearchView({
                       <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
                         {movie.title}
                       </h2>
-                      {inLib ? (
-                        <p
-                          className={cn(
-                            "text-xs font-medium",
-                            existing?.status === "watched"
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : existing?.status === "wishlist" || upcoming
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-[var(--muted)]",
-                          )}
-                        >
-                          Toca para editar
-                        </p>
-                      ) : (
-                        <p className="line-clamp-1 text-xs text-[var(--muted)]">
-                          {upcoming
-                            ? formatReleaseDate(movie.released)
-                              ? `Estreno ${formatReleaseDate(movie.released)}`
-                              : "Próximo estreno"
-                            : (movie.released?.slice(0, 4) ?? "Sin fecha")}
-                        </p>
-                      )}
+                      <p className="line-clamp-1 text-xs text-[var(--muted)]">
+                        {upcoming
+                          ? formatReleaseDate(movie.released)
+                            ? `Estreno ${formatReleaseDate(movie.released)}`
+                            : "Próximo estreno"
+                          : [
+                              movie.released?.slice(0, 4),
+                              movie.directors.slice(0, 2).join(", ") || null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "Sin fecha"}
+                      </p>
                       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
                         {movie.voteAverage ? (
                           <span className="inline-flex items-center gap-0.5 text-amber-500">

@@ -136,7 +136,7 @@ export function AddBookModal({ open, onOpenChange, userId, onAdded }: Props) {
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Añadir libro</DialogTitle>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Escribe y elige una sugerencia, o pulsa Buscar / Enter para ver todos
+          Escribe título o autor; pulsa Buscar / Enter para ver más
         </p>
       </DialogHeader>
 

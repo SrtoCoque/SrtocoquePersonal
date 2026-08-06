@@ -139,9 +139,15 @@ function scoreResult(
   score += matchedTokens * 80;
   if (tokens.length && matchedTokens === tokens.length) score += 150;
 
-  if (authors.includes(q) || tokens.some((t) => authors.includes(t))) {
-    score += 200;
+  if (authors === q) score += 900;
+  else if (authors.startsWith(q) || q.startsWith(authors)) score += 650;
+  else if (authors.includes(q) || tokens.some((t) => authors.includes(t))) {
+    score += 400;
   }
+
+  // Apellido o nombre suelto del autor
+  const authorParts = authors.split(" ").filter((t) => t.length > 2);
+  if (tokens.some((t) => authorParts.includes(t))) score += 250;
 
   score += Math.min(400, Math.log10((book.ratingsCount ?? 0) + 1) * 180);
   score += (book.averageRating ?? 0) * 25;
@@ -170,8 +176,8 @@ function buildSearchQueries(raw: string): string[] {
   const trimmed = escapeQueryTerm(raw.trim());
   if (!trimmed) return [];
 
-  // Prioriza coincidencia en título; mantiene también búsqueda libre
-  return [`intitle:${trimmed}`, trimmed];
+  // Título, autor y búsqueda libre (Google Books: intitle: / inauthor:)
+  return [`intitle:${trimmed}`, `inauthor:${trimmed}`, trimmed];
 }
 
 export async function searchGoogleBooks(

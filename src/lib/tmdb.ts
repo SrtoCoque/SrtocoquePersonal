@@ -22,6 +22,25 @@ type TmdbSearchResponse = {
   status_code?: number;
 };
 
+type TmdbPerson = {
+  id: number;
+  name?: string;
+  popularity?: number;
+  known_for_department?: string | null;
+};
+
+type TmdbPersonSearchResponse = {
+  results?: TmdbPerson[];
+};
+
+type TmdbCreditMovie = TmdbMovie & {
+  job?: string;
+};
+
+type TmdbPersonMovieCredits = {
+  crew?: TmdbCreditMovie[];
+};
+
 type TmdbCredits = {
   crew?: { job?: string; name?: string }[];
 };
@@ -167,6 +186,88 @@ function scoreMovie(
   return score;
 }
 
+function scorePersonName(name: string, query: string): number {
+  const q = query.toLowerCase().trim();
+  const n = name.toLowerCase().trim();
+  if (!q || !n) return 0;
+  if (n === q) return 1000;
+  if (n.startsWith(q) || q.startsWith(n)) return 750;
+  if (n.includes(q)) return 550;
+  const parts = n.split(/\s+/);
+  if (parts.some((p) => p === q)) return 700;
+  if (parts.some((p) => p.startsWith(q) && q.length >= 3)) return 500;
+  return 0;
+}
+
+async function searchMoviesByDirector(
+  query: string,
+  apiKey: string,
+  maxDirectors = 2,
+): Promise<(TmdbMovieResult & { _score: number })[]> {
+  const params = new URLSearchParams({
+    api_key: apiKey,
+    language: TMDB_LANG,
+    query,
+    include_adult: "false",
+    page: "1",
+  });
+
+  const data = await fetchTmdb<TmdbPersonSearchResponse>(
+    `https://api.themoviedb.org/3/search/person?${params.toString()}`,
+  );
+
+  const directors = (data.results ?? [])
+    .map((person) => ({
+      ...person,
+      match: scorePersonName(person.name ?? "", query),
+    }))
+    .filter((person) => {
+      if (person.match >= 500) return true;
+      return (
+        person.known_for_department === "Directing" && person.match >= 200
+      );
+    })
+    .sort(
+      (a, b) =>
+        b.match - a.match || (b.popularity ?? 0) - (a.popularity ?? 0),
+    )
+    .slice(0, maxDirectors);
+
+  if (directors.length === 0) return [];
+
+  const creditLists = await Promise.all(
+    directors.map(async (person) => {
+      const creditParams = new URLSearchParams({
+        api_key: apiKey,
+        language: TMDB_LANG,
+      });
+      try {
+        const credits = await fetchTmdb<TmdbPersonMovieCredits>(
+          `https://api.themoviedb.org/3/person/${person.id}/movie_credits?${creditParams.toString()}`,
+        );
+        const name = person.name ?? "Director";
+        return (credits.crew ?? [])
+          .filter((c) => c.job === "Director" && c.id)
+          .map((item) => {
+            const movie = mapSearchMovie(item);
+            movie.directors = [name];
+            movie._score =
+              650 +
+              person.match * 0.35 +
+              Math.min(180, (item.popularity ?? 0) * 2) +
+              (item.vote_average ?? 0) * 10 +
+              (movie.coverUrl ? 40 : 0);
+            return movie;
+          });
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  return creditLists.flat();
+}
+
 export async function getTmdbMovieDetails(
   tmdbId: number,
 ): Promise<TmdbMovieResult> {
@@ -213,7 +314,7 @@ export async function searchTmdbMovies(
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey) throw new Error("Falta TMDB_API_KEY");
 
-  const params = new URLSearchParams({
+  const titleParams = new URLSearchParams({
     api_key: apiKey,
     language: TMDB_LANG,
     query: trimmed,
@@ -221,13 +322,38 @@ export async function searchTmdbMovies(
     page: "1",
   });
 
-  const data = await fetchTmdb<TmdbSearchResponse>(
-    `https://api.themoviedb.org/3/search/movie?${params.toString()}`,
-  );
+  const [titleData, directorMovies] = await Promise.all([
+    fetchTmdb<TmdbSearchResponse>(
+      `https://api.themoviedb.org/3/search/movie?${titleParams.toString()}`,
+    ),
+    searchMoviesByDirector(trimmed, apiKey).catch(() => []),
+  ]);
 
-  const ranked = (data.results ?? [])
+  const titleMovies = (titleData.results ?? [])
     .map(mapSearchMovie)
-    .map((movie) => ({ ...movie, _score: scoreMovie(movie, trimmed) }))
+    .map((movie) => ({ ...movie, _score: scoreMovie(movie, trimmed) }));
+
+  const byId = new Map<number, TmdbMovieResult & { _score: number }>();
+  for (const movie of [...titleMovies, ...directorMovies]) {
+    const prev = byId.get(movie.tmdbId);
+    if (!prev || movie._score > prev._score) {
+      byId.set(movie.tmdbId, {
+        ...movie,
+        directors:
+          movie.directors.length > 0
+            ? movie.directors
+            : (prev?.directors ?? []),
+      });
+    } else if (
+      prev &&
+      movie.directors.length > 0 &&
+      prev.directors.length === 0
+    ) {
+      byId.set(movie.tmdbId, { ...prev, directors: movie.directors });
+    }
+  }
+
+  const ranked = [...byId.values()]
     .sort((a, b) => b._score - a._score)
     .slice(0, maxResults);
 
@@ -240,6 +366,10 @@ export async function searchTmdbMovies(
           ...details,
           coverUrl: details.coverUrl ?? movie.coverUrl,
           title: details.title || movie.title,
+          directors:
+            details.directors.length > 0
+              ? details.directors
+              : movie.directors,
           voteAverage: details.voteAverage ?? movie.voteAverage,
         };
       } catch {
