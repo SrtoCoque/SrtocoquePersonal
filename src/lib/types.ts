@@ -115,9 +115,20 @@ export type TmdbMovieResult = {
   runtime: number | null;
   voteAverage: number | null;
   providers: string[];
+  /** ID de YouTube del trailer oficial (TMDB), si existe */
+  youtubeTrailerKey?: string | null;
   overview?: string;
   popularity?: number;
 };
+
+/** Enlace al trailer: YouTube directo si hay key TMDB; si no, búsqueda «título trailer». */
+export function movieTrailerHref(
+  title: string,
+  youtubeKey?: string | null,
+): string {
+  if (youtubeKey) return `https://www.youtube.com/watch?v=${youtubeKey}`;
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${title} trailer`)}`;
+}
 
 /** Formatea minutos TMDB: 135 → "2h 15min" */
 export function formatMovieRuntime(minutes: number | null | undefined): string | null {
@@ -138,6 +149,25 @@ export function isUpcomingRelease(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
   const today = new Date().toISOString().slice(0, 10);
   return day > today;
+}
+
+/**
+ * True si se estrenó hace como máximo `windowDays` días (ya en cartelera,
+ * no futura). Por defecto dos semanas.
+ */
+export function isInTheatersRelease(
+  released: string | null | undefined,
+  windowDays = 14,
+): boolean {
+  if (!released) return false;
+  const day = released.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (day > today) return false;
+  const start = new Date();
+  start.setUTCDate(start.getUTCDate() - windowDays);
+  const startDay = start.toISOString().slice(0, 10);
+  return day >= startDay;
 }
 
 export function formatReleaseDate(released: string | null | undefined): string | null {

@@ -18,6 +18,7 @@ import {
   type MovieDestination,
 } from "@/components/movies/movie-destination-fields";
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
+import { MovieTrailerButton } from "@/components/movies/movie-trailer-button";
 import { createClient } from "@/lib/supabase/client";
 import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
 import { isUpcomingRelease } from "@/lib/types";
@@ -298,6 +299,12 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                 >
                   Cambiar película
                 </button>
+                <div className="mt-3">
+                  <MovieTrailerButton
+                    title={selected.title}
+                    youtubeKey={selected.youtubeTrailerKey}
+                  />
+                </div>
               </div>
             </div>
 

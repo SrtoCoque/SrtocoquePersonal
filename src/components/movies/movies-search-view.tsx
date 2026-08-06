@@ -4,28 +4,49 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Clapperboard, Loader2, Search, Star } from "lucide-react";
+import { ArrowLeft, Bookmark, Check, Clapperboard, Loader2, Search, Star } from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { SaveMovieDialog } from "@/components/movies/save-movie-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import type { TmdbMovieResult, UserMovie } from "@/lib/types";
 import {
-  MOVIE_STATUS_LABELS,
   formatMovieRuntime,
   formatReleaseDate,
   isUpcomingRelease,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<UserMovie["status"], string> = {
-  wishlist: "bg-amber-500/90 text-white",
-  owned: "bg-rose-500/90 text-white",
-  watching: "bg-sky-500/90 text-white",
-  watched: "bg-emerald-500/90 text-white",
+const IN_LIBRARY: Record<
+  UserMovie["status"],
+  { label: string; bar: string; ring: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    ring: "ring-2 ring-amber-500/70 border-amber-500/40",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu biblioteca",
+    bar: "bg-rose-500 text-white",
+    ring: "ring-2 ring-rose-500/70 border-rose-500/40",
+    Icon: Bookmark,
+  },
+  watching: {
+    label: "La estás viendo",
+    bar: "bg-sky-500 text-white",
+    ring: "ring-2 ring-sky-500/70 border-sky-500/40",
+    Icon: Check,
+  },
+  watched: {
+    label: "Ya la has visto",
+    bar: "bg-emerald-600 text-white",
+    ring: "ring-2 ring-emerald-500/70 border-emerald-500/40",
+    Icon: Check,
+  },
 };
 
 export function MoviesSearchView({
@@ -139,7 +160,7 @@ export function MoviesSearchView({
             Buscar películas
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados de TMDB en español · si ya la tienes, se abre editar
+            Resultados de TMDB · las que ya tienes se marcan con claridad
           </p>
         </div>
 
@@ -191,12 +212,29 @@ export function MoviesSearchView({
               {results.map((movie) => {
                 const existing = libraryByTmdbId.get(movie.tmdbId);
                 const upcoming = isUpcomingRelease(movie.released);
+                const inLib = existing
+                  ? upcoming
+                    ? {
+                        label: "Próximo estreno · guardada",
+                        bar: "bg-orange-500 text-white",
+                        ring: "ring-2 ring-orange-500/70 border-orange-500/40",
+                        Icon: Bookmark,
+                      }
+                    : IN_LIBRARY[existing.status]
+                  : null;
+                const StatusIcon = inLib?.Icon;
+
                 return (
                   <button
                     key={movie.tmdbId}
                     type="button"
                     onClick={() => handleClick(movie)}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40"
+                    className={cn(
+                      "group flex flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5",
+                      inLib
+                        ? inLib.ring
+                        : "border-[var(--border)] hover:border-[var(--accent)]/40",
+                    )}
                   >
                     <div className="relative aspect-[2/3] w-full bg-[var(--surface-3)]">
                       {movie.coverUrl ? (
@@ -204,7 +242,10 @@ export function MoviesSearchView({
                           src={movie.coverUrl}
                           alt={movie.title}
                           fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          className={cn(
+                            "object-cover transition-transform duration-500 group-hover:scale-105",
+                            inLib && "brightness-[0.85]",
+                          )}
                           sizes="200px"
                           unoptimized
                         />
@@ -213,32 +254,44 @@ export function MoviesSearchView({
                           <Clapperboard className="h-8 w-8 opacity-40" />
                         </div>
                       )}
-                      {existing && (
-                        <Badge
+                      {inLib && StatusIcon ? (
+                        <div
                           className={cn(
-                            "absolute left-2 top-2 shadow-sm",
-                            upcoming
-                              ? "bg-violet-600 text-white"
-                              : STATUS_STYLE[existing.status],
+                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-2.5 text-center text-xs font-semibold leading-tight shadow-lg sm:text-sm",
+                            inLib.bar,
                           )}
                         >
-                          {upcoming
-                            ? "Próximo estreno"
-                            : MOVIE_STATUS_LABELS[existing.status]}
-                        </Badge>
-                      )}
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                          <span className="line-clamp-1">{inLib.label}</span>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-1 flex-col gap-1 p-3">
                       <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
                         {movie.title}
                       </h2>
-                      <p className="line-clamp-1 text-xs text-[var(--muted)]">
-                        {upcoming
-                          ? formatReleaseDate(movie.released)
-                            ? `Estreno ${formatReleaseDate(movie.released)}`
-                            : "Próximo estreno"
-                          : (movie.released?.slice(0, 4) ?? "Sin fecha")}
-                      </p>
+                      {inLib ? (
+                        <p
+                          className={cn(
+                            "text-xs font-medium",
+                            existing?.status === "watched"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : existing?.status === "wishlist" || upcoming
+                                ? "text-amber-600 dark:text-amber-400"
+                                : "text-[var(--muted)]",
+                          )}
+                        >
+                          Toca para editar
+                        </p>
+                      ) : (
+                        <p className="line-clamp-1 text-xs text-[var(--muted)]">
+                          {upcoming
+                            ? formatReleaseDate(movie.released)
+                              ? `Estreno ${formatReleaseDate(movie.released)}`
+                              : "Próximo estreno"
+                            : (movie.released?.slice(0, 4) ?? "Sin fecha")}
+                        </p>
+                      )}
                       <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
                         {movie.voteAverage ? (
                           <span className="inline-flex items-center gap-0.5 text-amber-500">

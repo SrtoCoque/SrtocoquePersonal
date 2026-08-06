@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import { MovieTrailerButton } from "@/components/movies/movie-trailer-button";
 import type {
   MovieStatus,
   MovieWatchLocation,
@@ -55,6 +56,7 @@ export function EditMovieDialog({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [trailerKey, setTrailerKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!movie || !open) return;
@@ -65,6 +67,7 @@ export function EditMovieDialog({
     setLocation("home");
     setError(null);
     setHistoryOpen(false);
+    setTrailerKey(null);
 
     async function loadViewings() {
       const supabase = createClient();
@@ -75,7 +78,22 @@ export function EditMovieDialog({
         .order("viewed_at", { ascending: false });
       setViewings((data as UserMovieViewing[]) ?? []);
     }
+
+    async function loadTrailer() {
+      if (!movie!.tmdb_id) return;
+      try {
+        const res = await fetch(`/api/movies/details?id=${movie!.tmdb_id}`);
+        const data = (await res.json()) as {
+          movie?: { youtubeTrailerKey?: string | null };
+        };
+        if (res.ok) setTrailerKey(data.movie?.youtubeTrailerKey ?? null);
+      } catch {
+        /* fallback a búsqueda YouTube */
+      }
+    }
+
     loadViewings();
+    loadTrailer();
   }, [movie, open]);
 
   async function handleSave() {
@@ -261,6 +279,12 @@ export function EditMovieDialog({
                     Estreno {formatReleaseDate(movie.released)}
                   </p>
                 )}
+                <div className="mt-3">
+                  <MovieTrailerButton
+                    title={movie.title}
+                    youtubeKey={trailerKey}
+                  />
+                </div>
               </div>
               <Button
                 type="button"

@@ -10,13 +10,14 @@ import { MovieSection } from "@/components/movies/movie-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { UserMovie } from "@/lib/types";
-import { isUpcomingRelease } from "@/lib/types";
+import { isInTheatersRelease, isUpcomingRelease } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "upcoming" | "wishlist" | "watched";
+type Filter = "all" | "inTheaters" | "upcoming" | "wishlist" | "watched";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
+  { id: "inTheaters", label: "En el cine" },
   { id: "upcoming", label: "Estrenos" },
   { id: "wishlist", label: "Wishlist" },
   { id: "watched", label: "Vistas" },
@@ -69,6 +70,13 @@ export function MoviesLibraryView({
     loadMovies();
   }, [loadMovies]);
 
+  const inTheatersMovies = useMemo(
+    () =>
+      movies
+        .filter((m) => isInTheatersRelease(m.released))
+        .sort((a, b) => (b.released ?? "").localeCompare(a.released ?? "")),
+    [movies],
+  );
   const upcomingMovies = useMemo(
     () =>
       movies
@@ -90,10 +98,18 @@ export function MoviesLibraryView({
 
   const filtered = useMemo(() => {
     if (filter === "all") return movies;
+    if (filter === "inTheaters") return inTheatersMovies;
     if (filter === "upcoming") return upcomingMovies;
     if (filter === "wishlist") return wishlistMovies;
     return watchedMovies;
-  }, [movies, filter, upcomingMovies, wishlistMovies, watchedMovies]);
+  }, [
+    movies,
+    filter,
+    inTheatersMovies,
+    upcomingMovies,
+    wishlistMovies,
+    watchedMovies,
+  ]);
 
   return (
     <div className="min-h-screen">
@@ -148,6 +164,16 @@ export function MoviesLibraryView({
             </div>
           ) : (
             <div className="space-y-10">
+              {inTheatersMovies.length > 0 && (
+                <MovieSection
+                  title="En el cine"
+                  subtitle="Estrenadas en las últimas dos semanas"
+                  movies={inTheatersMovies}
+                  onSeeMore={() => setFilter("inTheaters")}
+                  onEdit={setEditing}
+                  emptyLabel=""
+                />
+              )}
               {upcomingMovies.length > 0 && (
                 <MovieSection
                   title="Próximos estrenos"

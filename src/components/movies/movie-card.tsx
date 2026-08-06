@@ -7,6 +7,7 @@ import type { MovieStatus, UserMovie } from "@/lib/types";
 import {
   formatMovieRuntime,
   formatReleaseDate,
+  isInTheatersRelease,
   isUpcomingRelease,
   MOVIE_STATUS_LABELS,
 } from "@/lib/types";
@@ -28,6 +29,7 @@ export function MovieCard({
 }) {
   const times = movie.times_watched ?? 0;
   const upcoming = isUpcomingRelease(movie.released);
+  const inTheaters = !upcoming && isInTheatersRelease(movie.released);
 
   return (
     <button
@@ -53,8 +55,19 @@ export function MovieCard({
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <Badge className={cn("w-fit", STATUS_STYLE[movie.status])}>
-          {upcoming ? "Próximo estreno" : MOVIE_STATUS_LABELS[movie.status]}
+        <Badge
+          className={cn(
+            "w-fit",
+            inTheaters
+              ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
+              : STATUS_STYLE[movie.status],
+          )}
+        >
+          {upcoming
+            ? "Próximo estreno"
+            : inTheaters
+              ? "En el cine"
+              : MOVIE_STATUS_LABELS[movie.status]}
         </Badge>
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {movie.title}
@@ -64,14 +77,16 @@ export function MovieCard({
             ? formatReleaseDate(movie.released)
               ? `Estreno ${formatReleaseDate(movie.released)}`
               : "Fecha de estreno pendiente"
-            : [
-                formatMovieRuntime(movie.runtime),
-                movie.directors.slice(0, 2).join(", ") ||
-                  movie.genres.slice(0, 2).join(", ") ||
-                  null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Sin datos"}
+            : inTheaters && formatReleaseDate(movie.released)
+              ? `Estreno ${formatReleaseDate(movie.released)}`
+              : [
+                  formatMovieRuntime(movie.runtime),
+                  movie.directors.slice(0, 2).join(", ") ||
+                    movie.genres.slice(0, 2).join(", ") ||
+                    null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "Sin datos"}
         </p>
         {movie.providers?.length ? (
           <p className="line-clamp-1 text-[10px] text-[var(--muted)]">

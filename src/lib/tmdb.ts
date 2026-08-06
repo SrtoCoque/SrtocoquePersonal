@@ -26,6 +26,15 @@ type TmdbCredits = {
   crew?: { job?: string; name?: string }[];
 };
 
+type TmdbVideo = {
+  key?: string;
+  site?: string;
+  type?: string;
+  official?: boolean;
+  name?: string;
+  iso_639_1?: string;
+};
+
 type TmdbProvider = { provider_name?: string };
 
 type TmdbWatchProviders = {
@@ -45,6 +54,7 @@ type TmdbDetails = TmdbMovie & {
   runtime?: number | null;
   genres?: { id: number; name: string }[];
   credits?: TmdbCredits;
+  videos?: { results?: TmdbVideo[] };
   "watch/providers"?: TmdbWatchProviders;
   status_message?: string;
 };
@@ -71,6 +81,23 @@ function extractProviders(data: TmdbDetails): string[] {
     .filter((n): n is string => Boolean(n));
 
   return [...new Set(names)].slice(0, 6);
+}
+
+function extractYoutubeTrailerKey(data: TmdbDetails): string | null {
+  const videos = (data.videos?.results ?? []).filter(
+    (v) => v.site === "YouTube" && v.key && (v.type === "Trailer" || v.type === "Teaser"),
+  );
+  if (videos.length === 0) return null;
+
+  const ranked = [...videos].sort((a, b) => {
+    const score = (v: TmdbVideo) =>
+      (v.type === "Trailer" ? 100 : 0) +
+      (v.official ? 50 : 0) +
+      (v.iso_639_1 === "es" ? 30 : v.iso_639_1 === "en" ? 10 : 0);
+    return score(b) - score(a);
+  });
+
+  return ranked[0]?.key ?? null;
 }
 
 async function fetchTmdb<T>(url: string, retries = 3): Promise<T> {
@@ -115,6 +142,7 @@ function mapSearchMovie(item: TmdbMovie): TmdbMovieResult & { _score: number } {
     providers: [],
     overview: item.overview,
     popularity: item.popularity,
+    youtubeTrailerKey: null,
     _score: 0,
   };
 }
@@ -148,7 +176,7 @@ export async function getTmdbMovieDetails(
   const params = new URLSearchParams({
     api_key: apiKey,
     language: TMDB_LANG,
-    append_to_response: "credits,watch/providers",
+    append_to_response: "credits,watch/providers,videos",
   });
 
   const data = await fetchTmdb<TmdbDetails>(
@@ -170,6 +198,7 @@ export async function getTmdbMovieDetails(
     runtime: data.runtime ?? null,
     voteAverage: data.vote_average ?? null,
     providers: extractProviders(data),
+    youtubeTrailerKey: extractYoutubeTrailerKey(data),
     overview: data.overview,
   };
 }
