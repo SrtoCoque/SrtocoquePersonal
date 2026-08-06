@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogBody,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -111,8 +112,8 @@ export function AddCardioWorkoutDialog({
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Añadir · {meta?.title ?? "Cardio"}</DialogTitle>
       </DialogHeader>
-      <DialogBody>
-        <form className="space-y-4" onSubmit={handleSave}>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
+        <DialogBody className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="cardio-date">Fecha</Label>
             <Input
@@ -206,7 +207,8 @@ export function AddCardioWorkoutDialog({
               {error}
             </p>
           ) : null}
-
+        </DialogBody>
+        <DialogFooter>
           <Button type="submit" className="w-full" disabled={saving}>
             {saving ? (
               <>
@@ -217,8 +219,8 @@ export function AddCardioWorkoutDialog({
               "Guardar entreno"
             )}
           </Button>
-        </form>
-      </DialogBody>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }

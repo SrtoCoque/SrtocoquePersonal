@@ -6,6 +6,7 @@ import { Dumbbell, Loader2, Plus, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogBody,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -23,6 +24,8 @@ export type StrengthExerciseMeta = {
   isNewLibre?: boolean;
   /** Resumen de la última sesión, si existe. */
   lastSetsSummary?: string | null;
+  /** Series de la última sesión (referencia por fila). */
+  lastSets?: StrengthSet[] | null;
 };
 
 type DraftSet = {
@@ -34,12 +37,46 @@ function emptySet(): DraftSet {
   return { weight: "", reps: "" };
 }
 
+function draftRowsForLast(lastSets: StrengthSet[] | null | undefined): DraftSet[] {
+  if (lastSets && lastSets.length > 0) {
+    return lastSets.map(() => emptySet());
+  }
+  return [emptySet(), emptySet(), emptySet()];
+}
+
+function draftFromSets(sets: StrengthSet[]): DraftSet[] {
+  if (!sets.length) return [emptySet()];
+  return sets.map((s) => ({
+    weight: s.weight_kg != null ? String(s.weight_kg) : "",
+    reps: s.reps != null ? String(s.reps) : "",
+  }));
+}
+
+function lastHint(set: StrengthSet | undefined): string | null {
+  if (!set) return null;
+  const w = set.weight_kg;
+  const r = set.reps;
+  if (w != null && r != null) return `${w}×${r}`;
+  if (w != null) return `${w} kg`;
+  if (r != null) return `${r} reps`;
+  return null;
+}
+
+export type ExistingStrengthSession = {
+  id: string;
+  performed_at: string;
+  sets: StrengthSet[];
+  notes: string | null;
+  exercise_title?: string | null;
+};
+
 export function StrengthExerciseDialog({
   open,
   onOpenChange,
   userId,
   category,
   exercise,
+  existingSession = null,
   onSaved,
 }: {
   open: boolean;
@@ -47,9 +84,12 @@ export function StrengthExerciseDialog({
   userId: string;
   category: string;
   exercise: StrengthExerciseMeta | null;
-  onSaved: () => void;
+  /** Si hay sesión, se edita (update) en lugar de crear. */
+  existingSession?: ExistingStrengthSession | null;
+  onSaved: (result?: { performed_at: string }) => void;
 }) {
-  const showNameField = !!exercise?.isNewLibre;
+  const isEdit = !!existingSession;
+  const showNameField = !!exercise?.isNewLibre && !isEdit;
 
   const [customTitle, setCustomTitle] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -64,13 +104,22 @@ export function StrengthExerciseDialog({
 
   useEffect(() => {
     if (!open || !exercise) return;
-    setCustomTitle(exercise.isNewLibre ? "" : exercise.title);
-    setDate(new Date().toISOString().slice(0, 10));
-    setSets([emptySet(), emptySet(), emptySet()]);
-    setNotes("");
+    if (existingSession) {
+      setCustomTitle(
+        existingSession.exercise_title?.trim() || exercise.title,
+      );
+      setDate(existingSession.performed_at.slice(0, 10));
+      setSets(draftFromSets(existingSession.sets));
+      setNotes(existingSession.notes ?? "");
+    } else {
+      setCustomTitle(exercise.isNewLibre ? "" : exercise.title);
+      setDate(new Date().toISOString().slice(0, 10));
+      setSets(draftRowsForLast(exercise.lastSets));
+      setNotes("");
+    }
     setError(null);
     setSaving(false);
-  }, [open, exercise]);
+  }, [open, exercise, existingSession]);
 
   function updateSet(index: number, patch: Partial<DraftSet>) {
     setSets((prev) =>
@@ -82,10 +131,10 @@ export function StrengthExerciseDialog({
     e.preventDefault();
     if (!exercise) return;
 
-    const title = exercise.isNewLibre
+    const title = exercise.isNewLibre && !isEdit
       ? customTitle.trim()
-      : exercise.title;
-    if (exercise.isNewLibre && !title) {
+      : (isEdit ? customTitle.trim() || exercise.title : exercise.title);
+    if (exercise.isNewLibre && !isEdit && !title) {
       setError("Pon un nombre al ejercicio");
       return;
     }
@@ -115,8 +164,7 @@ export function StrengthExerciseDialog({
       return;
     }
 
-    // Temporal: slug único. Permanente/catálogo: slug del ejercicio.
-    const slug = exercise.isNewLibre
+    const slug = exercise.isNewLibre && !isEdit
       ? `temp-${Date.now()}`
       : exercise.slug;
 
@@ -124,60 +172,85 @@ export function StrengthExerciseDialog({
     setError(null);
     const supabase = createClient();
 
-    const { error: insertError } = await supabase
-      .from("user_strength_sessions")
-      .insert({
-        user_id: userId,
-        category,
-        exercise_slug: slug,
-        exercise_title: title,
-        performed_at: date,
-        sets: meaningful,
-        notes: notes.trim() || null,
-      });
+    let saveError: { message: string } | null = null;
+
+    if (isEdit && existingSession) {
+      const { error: updateError } = await supabase
+        .from("user_strength_sessions")
+        .update({
+          performed_at: date,
+          sets: meaningful,
+          notes: notes.trim() || null,
+          exercise_title: title,
+        })
+        .eq("id", existingSession.id)
+        .eq("user_id", userId);
+      saveError = updateError;
+    } else {
+      const { error: insertError } = await supabase
+        .from("user_strength_sessions")
+        .insert({
+          user_id: userId,
+          category,
+          exercise_slug: slug,
+          exercise_title: title,
+          performed_at: date,
+          sets: meaningful,
+          notes: notes.trim() || null,
+        });
+      saveError = insertError;
+    }
 
     setSaving(false);
-    if (insertError) {
-      const msg = insertError.message.toLowerCase();
+    if (saveError) {
+      const msg = saveError.message.toLowerCase();
       setError(
-        insertError.message.includes("user_strength_sessions") ||
+        saveError.message.includes("user_strength_sessions") ||
           msg.includes("schema cache") ||
           msg.includes("exercise_title")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-strength-exercise-title.sql (o schema-strength.sql)"
-          : insertError.message,
+          : saveError.message,
       );
       return;
     }
     onOpenChange(false);
-    onSaved();
+    onSaved({ performed_at: date });
   }
 
-  const dialogTitle = exercise?.isNewLibre
-    ? "Ejercicio libre"
-    : (exercise?.title ?? "Ejercicio");
+  const dialogTitle = isEdit
+    ? (exercise?.title ?? "Editar ejercicio")
+    : exercise?.isNewLibre
+      ? "Ejercicio libre"
+      : (exercise?.title ?? "Ejercicio");
+
+  const showLastHints = !isEdit;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader onClose={() => onOpenChange(false)}>
-        <DialogTitle>{dialogTitle}</DialogTitle>
+        <DialogTitle className="pr-2 leading-snug">{dialogTitle}</DialogTitle>
       </DialogHeader>
-      <DialogBody>
-        {exercise ? (
-          <form className="space-y-4" onSubmit={handleSave}>
+
+      {exercise ? (
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={handleSave}
+        >
+          <DialogBody className="space-y-3">
             {exercise.image ? (
-              <div className="relative mx-auto aspect-[4/3] w-full max-w-[220px] overflow-hidden rounded-xl bg-[var(--surface-2)]">
+              <div className="relative mx-auto h-28 w-28 overflow-hidden rounded-xl bg-[var(--surface-2)] sm:h-36 sm:w-36">
                 <Image
                   src={exercise.image}
                   alt={exercise.title}
                   fill
-                  className="object-contain p-2"
-                  sizes="220px"
+                  className="object-contain p-1.5"
+                  sizes="144px"
                   unoptimized
                 />
               </div>
             ) : (
-              <div className="mx-auto flex aspect-[4/3] w-full max-w-[220px] items-center justify-center rounded-xl bg-[var(--surface-2)]">
-                <Dumbbell className="h-12 w-12 text-[var(--muted)] opacity-50" />
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-xl bg-[var(--surface-2)] sm:h-28 sm:w-28">
+                <Dumbbell className="h-8 w-8 text-[var(--muted)] opacity-50" />
               </div>
             )}
 
@@ -194,17 +267,6 @@ export function StrengthExerciseDialog({
                 />
                 <p className="text-xs text-[var(--muted)]">
                   Solo para esta vez · no se añade a tu lista
-                </p>
-              </div>
-            ) : null}
-
-            {exercise.lastSetsSummary ? (
-              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-3 py-2.5">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted)]">
-                  Última vez
-                </p>
-                <p className="mt-0.5 text-sm font-medium tabular-nums">
-                  {exercise.lastSetsSummary}
                 </p>
               </div>
             ) : null}
@@ -234,48 +296,67 @@ export function StrengthExerciseDialog({
               </div>
 
               <div className="space-y-2">
-                {sets.map((set, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-[2rem_1fr_1fr_auto] items-center gap-2"
-                  >
-                    <span className="text-center text-xs font-medium text-[var(--muted)]">
-                      {index + 1}
-                    </span>
-                    <Input
-                      inputMode="decimal"
-                      placeholder="Peso kg"
-                      aria-label={`Peso serie ${index + 1}`}
-                      value={set.weight}
-                      onChange={(e) =>
-                        updateSet(index, { weight: e.target.value })
-                      }
-                    />
-                    <Input
-                      inputMode="numeric"
-                      placeholder="Reps"
-                      aria-label={`Reps serie ${index + 1}`}
-                      value={set.reps}
-                      onChange={(e) =>
-                        updateSet(index, {
-                          reps: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Quitar serie ${index + 1}`}
-                      disabled={sets.length <= 1}
-                      onClick={() =>
-                        setSets((prev) => prev.filter((_, i) => i !== index))
-                      }
-                    >
-                      <Trash2 className="h-4 w-4 text-[var(--muted)]" />
-                    </Button>
-                  </div>
-                ))}
+                {sets.map((set, index) => {
+                  const prev = showLastHints
+                    ? exercise.lastSets?.[index]
+                    : undefined;
+                  const hint = lastHint(prev);
+                  const weightPh =
+                    prev?.weight_kg != null ? String(prev.weight_kg) : "kg";
+                  const repsPh =
+                    prev?.reps != null ? String(prev.reps) : "reps";
+                  return (
+                    <div key={index} className="space-y-0.5">
+                      <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_minmax(0,1fr)_2.25rem] items-center gap-1.5 sm:gap-2">
+                        <span className="text-center text-xs font-medium text-[var(--muted)]">
+                          {index + 1}
+                        </span>
+                        <Input
+                          inputMode="decimal"
+                          placeholder={weightPh}
+                          aria-label={`Peso serie ${index + 1}`}
+                          value={set.weight}
+                          onChange={(e) =>
+                            updateSet(index, { weight: e.target.value })
+                          }
+                          className="min-w-0 px-2"
+                        />
+                        <Input
+                          inputMode="numeric"
+                          placeholder={repsPh}
+                          aria-label={`Reps serie ${index + 1}`}
+                          value={set.reps}
+                          onChange={(e) =>
+                            updateSet(index, {
+                              reps: e.target.value.replace(/\D/g, ""),
+                            })
+                          }
+                          className="min-w-0 px-2"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 shrink-0"
+                          aria-label={`Quitar serie ${index + 1}`}
+                          disabled={sets.length <= 1}
+                          onClick={() =>
+                            setSets((prevSets) =>
+                              prevSets.filter((_, i) => i !== index),
+                            )
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 text-[var(--muted)]" />
+                        </Button>
+                      </div>
+                      {hint ? (
+                        <p className="pl-7 text-[11px] tabular-nums text-[var(--muted)]">
+                          Última: {hint}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
               <p className="text-xs text-[var(--muted)]">
                 El peso es opcional.
@@ -297,20 +378,24 @@ export function StrengthExerciseDialog({
                 {error}
               </p>
             ) : null}
+          </DialogBody>
 
+          <DialogFooter>
             <Button type="submit" className="w-full" disabled={saving}>
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Guardando…
                 </>
+              ) : isEdit ? (
+                "Guardar cambios"
               ) : (
                 "Guardar ejercicio"
               )}
             </Button>
-          </form>
-        ) : null}
-      </DialogBody>
+          </DialogFooter>
+        </form>
+      ) : null}
     </Dialog>
   );
 }

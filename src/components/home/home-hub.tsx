@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,7 +23,7 @@ const SECTIONS = [
     description: "Tu biblioteca de lecturas",
     icon: BookOpen,
     available: true,
-    accent: "from-teal-500/20 to-cyan-500/5",
+    image: "/home/libros.jpg",
   },
   {
     href: "/games",
@@ -30,7 +31,7 @@ const SECTIONS = [
     description: "Wishlist, jugando y completados",
     icon: Gamepad2,
     available: true,
-    accent: "from-violet-500/20 to-fuchsia-500/5",
+    image: "/home/videojuegos.jpg",
   },
   {
     href: "#",
@@ -38,7 +39,7 @@ const SECTIONS = [
     description: "Próximamente",
     icon: Tv,
     available: false,
-    accent: "from-amber-500/10 to-orange-500/5",
+    image: "/home/series.jpg",
   },
   {
     href: "/movies",
@@ -46,7 +47,7 @@ const SECTIONS = [
     description: "Wishlist y vistas",
     icon: Clapperboard,
     available: true,
-    accent: "from-rose-500/20 to-red-500/5",
+    image: "/home/peliculas.jpg",
   },
   {
     href: "/deporte",
@@ -54,7 +55,7 @@ const SECTIONS = [
     description: "Ejercicios por grupo muscular",
     icon: Dumbbell,
     available: true,
-    accent: "from-emerald-500/20 to-lime-500/5",
+    image: "/home/deporte.jpg",
   },
 ] as const;
 
@@ -111,29 +112,46 @@ export function HomeHub({ email }: { email: string | null }) {
           {SECTIONS.map((section) => {
             const Icon = section.icon;
             const cardClass = cn(
-              "group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-gradient-to-br p-6 text-left transition-all",
-              section.accent,
+              "group relative flex min-h-[11.5rem] flex-col justify-end overflow-hidden rounded-2xl border border-[var(--border)] p-6 text-left transition-all sm:min-h-[13rem]",
               section.available
-                ? "hover:-translate-y-1 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/10"
-                : "cursor-not-allowed opacity-60",
+                ? "hover:-translate-y-1 hover:border-white/40 hover:shadow-lg hover:shadow-black/20"
+                : "cursor-not-allowed opacity-70",
             );
 
             const content = (
               <>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface)] text-[var(--accent)] shadow-sm">
-                  <Icon className="h-6 w-6" />
+                <Image
+                  src={section.image}
+                  alt=""
+                  fill
+                  className={cn(
+                    "object-cover transition-transform duration-500",
+                    section.available && "group-hover:scale-[1.04]",
+                    !section.available && "grayscale-[30%]",
+                  )}
+                  sizes="(max-width:640px) 100vw, 50vw"
+                  priority
+                />
+                <div
+                  aria-hidden
+                  className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/20"
+                />
+                <div className="relative z-10">
+                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-white drop-shadow-sm">
+                    {section.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-white/80">
+                    {section.description}
+                  </p>
+                  {!section.available && (
+                    <span className="mt-3 inline-flex w-fit rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                      Próximamente
+                    </span>
+                  )}
                 </div>
-                <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-                  {section.title}
-                </h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  {section.description}
-                </p>
-                {!section.available && (
-                  <span className="mt-4 inline-flex w-fit rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
-                    Próximamente
-                  </span>
-                )}
               </>
             );
 

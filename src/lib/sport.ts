@@ -30,14 +30,14 @@ export const SPORT_CATEGORIES = [
   {
     slug: "biceps",
     title: "Bíceps",
-    description: "Curl y variantes",
+    description: "Curl y antebrazos",
     accent: "from-blue-500/20 to-indigo-500/5",
     icon: "dumbbell",
   },
   {
     slug: "triceps",
     title: "Tríceps",
-    description: "Fondos y extensiones",
+    description: "Extensiones y patadas",
     accent: "from-cyan-500/20 to-sky-500/5",
     icon: "dumbbell",
   },
@@ -231,6 +231,46 @@ export const HOMBROS_EXERCISES = [
 
 export type HombrosExerciseSlug = (typeof HOMBROS_EXERCISES)[number]["slug"];
 
+export const BICEPS_EXERCISES = [
+  {
+    slug: "curl-horizontal",
+    title: "Curl horizontal",
+    image: "/sport/biceps/curl-horizontal.png",
+  },
+  {
+    slug: "curl-recto",
+    title: "Curl recto",
+    image: "/sport/biceps/curl-recto.png",
+  },
+  {
+    slug: "antebrazos",
+    title: "Antebrazos",
+    image: "/sport/biceps/antebrazos.png",
+  },
+] as const;
+
+export type BicepsExerciseSlug = (typeof BICEPS_EXERCISES)[number]["slug"];
+
+export const TRICEPS_EXERCISES = [
+  {
+    slug: "curl-plano",
+    title: "Curl plano",
+    image: "/sport/triceps/curl-plano.png",
+  },
+  {
+    slug: "curl-de-pie",
+    title: "Curl de pie",
+    image: "/sport/triceps/curl-de-pie.png",
+  },
+  {
+    slug: "patada-trasera",
+    title: "Patada trasera",
+    image: "/sport/triceps/patada-trasera.png",
+  },
+] as const;
+
+export type TricepsExerciseSlug = (typeof TRICEPS_EXERCISES)[number]["slug"];
+
 export function getSportCategory(slug: string) {
   return SPORT_CATEGORIES.find((c) => c.slug === slug) ?? null;
 }
@@ -254,6 +294,36 @@ export function getPechoExercise(slug: string) {
 export function getEspaldaExercise(slug: string) {
   return ESPALDA_EXERCISES.find((e) => e.slug === slug) ?? null;
 }
+
+const ALL_STRENGTH_EXERCISES = [
+  ...PECHO_EXERCISES,
+  ...ESPALDA_EXERCISES,
+  ...HOMBROS_EXERCISES,
+  ...BICEPS_EXERCISES,
+  ...TRICEPS_EXERCISES,
+] as const;
+
+/** Título visible de un ejercicio de fuerza (catálogo o guardado). */
+export function resolveStrengthExerciseTitle(
+  slug: string,
+  savedTitle?: string | null,
+): string {
+  const saved = savedTitle?.trim();
+  if (saved) return saved;
+  const fromCatalog = ALL_STRENGTH_EXERCISES.find((e) => e.slug === slug);
+  if (fromCatalog) return fromCatalog.title;
+  return slug;
+}
+
+/** Orden de grupos de fuerza para resúmenes del historial. */
+export const STRENGTH_CATEGORY_ORDER = [
+  "pecho",
+  "espalda",
+  "hombros",
+  "biceps",
+  "triceps",
+  "abdominales",
+] as const;
 
 export const LIBRE_SLUG_PREFIX = "libre-";
 

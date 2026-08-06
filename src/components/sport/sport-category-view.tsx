@@ -3,9 +3,11 @@
 import { StrengthCategoryView } from "@/components/sport/strength-category-view";
 import type { SportCategorySlug } from "@/lib/sport";
 import {
+  BICEPS_EXERCISES,
   ESPALDA_EXERCISES,
   HOMBROS_EXERCISES,
   PECHO_EXERCISES,
+  TRICEPS_EXERCISES,
   getSportCategory,
 } from "@/lib/sport";
 
@@ -18,8 +20,8 @@ const CATALOGS: Partial<
   pecho: PECHO_EXERCISES,
   espalda: ESPALDA_EXERCISES,
   hombros: HOMBROS_EXERCISES,
-  biceps: [],
-  triceps: [],
+  biceps: BICEPS_EXERCISES,
+  triceps: TRICEPS_EXERCISES,
   abdominales: [],
 };
 

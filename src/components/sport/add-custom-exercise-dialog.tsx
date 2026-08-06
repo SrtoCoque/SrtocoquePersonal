@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogBody,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -82,8 +83,8 @@ export function AddCustomExerciseDialog({
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Añadir ejercicio</DialogTitle>
       </DialogHeader>
-      <DialogBody>
-        <form className="space-y-4" onSubmit={handleSave}>
+      <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
+        <DialogBody className="space-y-4">
           <p className="text-sm text-[var(--muted)]">
             Se guarda en esta sección para siempre (sin imagen). Para un
             entreno puntual usa <strong>Libre</strong>.
@@ -104,6 +105,8 @@ export function AddCustomExerciseDialog({
               {error}
             </p>
           ) : null}
+        </DialogBody>
+        <DialogFooter>
           <Button type="submit" className="w-full" disabled={saving}>
             {saving ? (
               <>
@@ -114,8 +117,8 @@ export function AddCustomExerciseDialog({
               "Añadir a la sección"
             )}
           </Button>
-        </form>
-      </DialogBody>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }

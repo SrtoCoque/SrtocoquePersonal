@@ -17,6 +17,7 @@ export function SportHeader({
   const pathname = usePathname();
   const router = useRouter();
   const onSportHome = pathname === "/deporte";
+  const onHistory = pathname.startsWith("/deporte/historial");
 
   async function signOut() {
     const supabase = createClient();
@@ -51,6 +52,17 @@ export function SportHeader({
               )}
             >
               Grupos
+            </Link>
+            <Link
+              href="/deporte/historial"
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
+                onHistory
+                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
+              )}
+            >
+              Historial
             </Link>
           </nav>
         </div>

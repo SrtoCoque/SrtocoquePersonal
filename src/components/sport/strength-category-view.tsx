@@ -27,6 +27,7 @@ export type StrengthExerciseItem = {
 type LastInfo = {
   date: string;
   summary: string | null;
+  sets: StrengthSet[];
 };
 
 export function StrengthCategoryView({
@@ -87,6 +88,7 @@ export function StrengthCategoryView({
       lastMap[slug] = {
         date: day,
         summary: formatStrengthSetsSummary(sets),
+        sets,
       };
     }
     setLastByExercise(lastMap);
@@ -127,6 +129,7 @@ export function StrengthCategoryView({
     setSelected({
       ...exercise,
       lastSetsSummary: last?.summary ?? null,
+      lastSets: last?.sets?.length ? last.sets : null,
     });
   }
 
