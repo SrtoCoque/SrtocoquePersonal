@@ -112,7 +112,7 @@ export function HomeHub({ email }: { email: string | null }) {
           {SECTIONS.map((section) => {
             const Icon = section.icon;
             const cardClass = cn(
-              "group relative flex min-h-[11.5rem] flex-col justify-end overflow-hidden rounded-2xl border border-[var(--border)] p-6 text-left transition-all sm:min-h-[13rem]",
+              "group relative flex min-h-[8.5rem] flex-col justify-end overflow-hidden rounded-2xl border border-[var(--border)] p-4 text-left transition-all sm:min-h-[9.5rem] sm:p-5",
               section.available
                 ? "hover:-translate-y-1 hover:border-white/40 hover:shadow-lg hover:shadow-black/20"
                 : "cursor-not-allowed opacity-70",
@@ -125,29 +125,30 @@ export function HomeHub({ email }: { email: string | null }) {
                   alt=""
                   fill
                   className={cn(
-                    "object-cover transition-transform duration-500",
-                    section.available && "group-hover:scale-[1.04]",
-                    !section.available && "grayscale-[30%]",
+                    "object-cover brightness-[0.55] contrast-[0.9] saturate-[0.45] transition-[transform,filter] duration-500",
+                    section.available &&
+                      "group-hover:scale-[1.04] group-hover:brightness-[0.5] group-hover:saturate-[0.5]",
+                    !section.available && "grayscale-[55%] brightness-[0.45]",
                   )}
                   sizes="(max-width:640px) 100vw, 50vw"
                   priority
                 />
                 <div
                   aria-hidden
-                  className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/20"
+                  className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/55 to-black/40"
                 />
                 <div className="relative z-10">
-                  <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm">
-                    <Icon className="h-5 w-5" />
+                  <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-white backdrop-blur-sm">
+                    <Icon className="h-4 w-4" />
                   </div>
-                  <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold text-white drop-shadow-sm">
+                  <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-white drop-shadow-sm sm:text-xl">
                     {section.title}
                   </h2>
-                  <p className="mt-1 text-sm text-white/80">
+                  <p className="mt-0.5 text-sm text-white/80">
                     {section.description}
                   </p>
                   {!section.available && (
-                    <span className="mt-3 inline-flex w-fit rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                    <span className="mt-2 inline-flex w-fit rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm">
                       Próximamente
                     </span>
                   )}
