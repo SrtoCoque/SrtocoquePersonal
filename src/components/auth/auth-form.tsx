@@ -88,14 +88,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
   return (
     <div className="mx-auto w-full max-w-md animate-fade-in">
       <div className="mb-8 text-center">
-        <p className="auth-sign-eyebrow mb-3 text-[11px] font-medium uppercase tracking-[0.35em] text-[#e0b84a]/80">
+        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.35em] text-slate-300/80">
           Bienvenido al
         </p>
-        <h1 className="auth-sign-title font-[family-name:var(--font-wizard)] text-[2.35rem] leading-none text-[#f3d98a] sm:text-5xl">
+        <h1 className="auth-sign-title font-[family-name:var(--font-wizard)] text-[2.35rem] leading-none text-slate-50 sm:text-5xl">
           Callejón Diagon
         </h1>
-        <div className="mx-auto mt-3 h-px w-28 bg-gradient-to-r from-transparent via-[#e0b84a] to-transparent" />
-        <p className="mt-4 text-sm text-[#d6c4a3]/85">
+        <div className="mx-auto mt-3 h-px w-28 bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+        <p className="mt-4 text-sm text-slate-300/90">
           {isLogin
             ? "Cruza el umbral hacia tu biblioteca mágica"
             : "Abre tu cuenta y empieza a llenar los estantes"}
@@ -104,10 +104,10 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <form
         onSubmit={handleSubmit}
-        className="auth-shop-panel space-y-4 rounded-2xl border border-[#e0b84a]/25 bg-[#1a100e]/80 p-6 shadow-[0_0_40px_rgba(224,184,74,0.08)] backdrop-blur-md"
+        className="auth-shop-panel space-y-4 rounded-2xl border border-white/15 bg-slate-950/55 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
       >
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-[#e8d7b5]">
+          <Label htmlFor="email" className="text-slate-200">
             Email
           </Label>
           <Input
@@ -118,12 +118,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="tu@email.com"
-            className="border-[#e0b84a]/20 bg-[#0f0908]/70 text-[#f5ebd4] placeholder:text-[#a8926f] focus-visible:ring-[#e0b84a]"
+            className="border-white/15 bg-slate-900/70 text-slate-50 placeholder:text-slate-500 focus-visible:ring-sky-400/60"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-[#e8d7b5]">
+          <Label htmlFor="password" className="text-slate-200">
             Contraseña
           </Label>
           <Input
@@ -135,24 +135,24 @@ export function AuthForm({ mode }: { mode: Mode }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Mínimo 6 caracteres"
-            className="border-[#e0b84a]/20 bg-[#0f0908]/70 text-[#f5ebd4] placeholder:text-[#a8926f] focus-visible:ring-[#e0b84a]"
+            className="border-white/15 bg-slate-900/70 text-slate-50 placeholder:text-slate-500 focus-visible:ring-sky-400/60"
           />
         </div>
 
         {error && (
-          <p className="rounded-lg border border-red-400/20 bg-red-950/40 px-3 py-2 text-sm text-red-300">
+          <p className="rounded-lg border border-red-400/20 bg-red-950/50 px-3 py-2 text-sm text-red-300">
             {error}
           </p>
         )}
         {message && (
-          <p className="rounded-lg border border-[#e0b84a]/25 bg-[#e0b84a]/10 px-3 py-2 text-sm text-[#f0d78a]">
+          <p className="rounded-lg border border-sky-400/25 bg-sky-950/40 px-3 py-2 text-sm text-sky-200">
             {message}
           </p>
         )}
 
         <Button
           type="submit"
-          className="w-full bg-[#c8962e] text-[#1a100e] hover:bg-[#e0b84a]"
+          className="w-full bg-sky-500 text-slate-950 hover:bg-sky-400"
           disabled={loading}
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -161,17 +161,17 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
         <div className="relative py-1">
           <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-[#e0b84a]/20" />
+            <span className="w-full border-t border-white/15" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[#1a100e] px-2 text-[#a8926f]">o</span>
+            <span className="bg-slate-950/80 px-2 text-slate-400">o</span>
           </div>
         </div>
 
         <Button
           type="button"
           variant="outline"
-          className="w-full border-[#e0b84a]/30 bg-transparent text-[#f0d78a] hover:bg-[#e0b84a]/10 hover:text-[#f5e6b8]"
+          className="w-full border-white/20 bg-transparent text-slate-100 hover:bg-white/10 hover:text-white"
           disabled={loading || magicSent}
           onClick={handleMagicLink}
         >
@@ -184,13 +184,13 @@ export function AuthForm({ mode }: { mode: Mode }) {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-[#b9a488]">
+      <p className="mt-6 text-center text-sm text-slate-300">
         {isLogin ? (
           <>
             ¿Primera visita?{" "}
             <Link
               href="/register"
-              className="font-medium text-[#e0b84a] hover:underline"
+              className="font-medium text-sky-300 hover:underline"
             >
               Regístrate
             </Link>
@@ -200,7 +200,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
             ¿Ya tienes cuenta?{" "}
             <Link
               href="/login"
-              className="font-medium text-[#e0b84a] hover:underline"
+              className="font-medium text-sky-300 hover:underline"
             >
               Entra al callejón
             </Link>
