@@ -18,6 +18,7 @@ import {
   isMovieOnShelf,
   isUpcomingRelease,
   parseMovieProviders,
+  serializeMovieProviders,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -82,13 +83,30 @@ export function MoviesLibraryView({
         const id = (row as { user_movie_id: string }).user_movie_id;
         counts.set(id, (counts.get(id) ?? 0) + 1);
       }
-      setMovies(
-        (data as UserMovie[]).map((m) => ({
-          ...m,
-          providers: parseMovieProviders(m.providers),
-          times_watched: counts.get(m.id) ?? 0,
-        })),
-      );
+      const mapped = (data as UserMovie[]).map((m) => ({
+        ...m,
+        providers: parseMovieProviders(m.providers),
+        times_watched: counts.get(m.id) ?? 0,
+      }));
+      setMovies(mapped);
+
+      // Actualiza en BD los proveedores legacy (solo nombre → JSON con logo)
+      void (async () => {
+        for (const row of data as UserMovie[]) {
+          const parsed = parseMovieProviders(row.providers);
+          if (parsed.length === 0 || !parsed.some((p) => p.logoUrl)) continue;
+          const next = serializeMovieProviders(parsed);
+          const prev = Array.isArray(row.providers)
+            ? (row.providers as unknown as string[])
+            : [];
+          if (JSON.stringify(prev) === JSON.stringify(next)) continue;
+          await supabase
+            .from("user_movies")
+            .update({ providers: next })
+            .eq("id", row.id)
+            .eq("user_id", userId);
+        }
+      })();
     }
     setLoading(false);
   }, [userId]);

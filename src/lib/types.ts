@@ -1,3 +1,5 @@
+import { resolveMovieProviderLogo } from "@/lib/movie-provider-logos";
+
 export type BookStatus = "wishlist" | "owned" | "reading" | "read";
 
 export type GameStatus = "wishlist" | "owned" | "playing" | "completed";
@@ -283,7 +285,10 @@ export function isMovieOnShelf(status: MovieStatus): status is MovieShelfStatus 
 /** Persistir en `user_movies.providers` (TEXT[]): JSON o nombre legado. */
 export function serializeMovieProviders(providers: MovieProvider[]): string[] {
   return providers.map((p) =>
-    JSON.stringify({ n: p.name, l: p.logoUrl }),
+    JSON.stringify({
+      n: p.name,
+      l: resolveMovieProviderLogo(p.name, p.logoUrl),
+    }),
   );
 }
 
@@ -323,7 +328,10 @@ export function parseMovieProviders(raw: unknown): MovieProvider[] {
 
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    out.push({ name, logoUrl });
+    out.push({
+      name,
+      logoUrl: resolveMovieProviderLogo(name, logoUrl),
+    });
   }
 
   return out;

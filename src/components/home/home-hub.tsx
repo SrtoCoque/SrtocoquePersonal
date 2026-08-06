@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   BookOpen,
   Clapperboard,
+  Dumbbell,
   Gamepad2,
   LogOut,
   Tv,
@@ -46,6 +47,14 @@ const SECTIONS = [
     icon: Clapperboard,
     available: true,
     accent: "from-rose-500/20 to-red-500/5",
+  },
+  {
+    href: "/deporte",
+    title: "Deporte",
+    description: "Ejercicios por grupo muscular",
+    icon: Dumbbell,
+    available: true,
+    accent: "from-emerald-500/20 to-lime-500/5",
   },
 ] as const;
 
