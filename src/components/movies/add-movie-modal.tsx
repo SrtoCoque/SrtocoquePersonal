@@ -20,6 +20,7 @@ import {
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { createClient } from "@/lib/supabase/client";
 import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
+import { isUpcomingRelease } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -106,6 +107,10 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
     if (!selected || !destination) return;
     if (destination === "watched" && !viewedAt) {
       setError("Indica la fecha en que la viste");
+      return;
+    }
+    if (destination === "watched" && isUpcomingRelease(selected.released)) {
+      setError("Esta película aún no se ha estrenado");
       return;
     }
 
@@ -299,6 +304,8 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
               onLocationChange={setLocation}
               score={score}
               onScoreChange={setScore}
+              upcoming={isUpcomingRelease(selected.released)}
+              released={selected.released}
             />
 
             <Button
@@ -308,7 +315,9 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {!destination
-                ? "Elige Wishlist o Vista"
+                ? isUpcomingRelease(selected.released)
+                  ? "Elige Wishlist"
+                  : "Elige Wishlist o Vista"
                 : destination === "wishlist"
                   ? "Añadir a Wishlist"
                   : "Marcar como vista"}

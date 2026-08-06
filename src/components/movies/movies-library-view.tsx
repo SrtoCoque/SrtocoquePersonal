@@ -10,12 +10,14 @@ import { MovieSection } from "@/components/movies/movie-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { UserMovie } from "@/lib/types";
+import { isUpcomingRelease } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "wishlist" | "watched";
+type Filter = "all" | "upcoming" | "wishlist" | "watched";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
+  { id: "upcoming", label: "Estrenos" },
   { id: "wishlist", label: "Wishlist" },
   { id: "watched", label: "Vistas" },
 ];
@@ -67,8 +69,18 @@ export function MoviesLibraryView({
     loadMovies();
   }, [loadMovies]);
 
+  const upcomingMovies = useMemo(
+    () =>
+      movies
+        .filter((m) => isUpcomingRelease(m.released))
+        .sort((a, b) => (a.released ?? "").localeCompare(b.released ?? "")),
+    [movies],
+  );
   const wishlistMovies = useMemo(
-    () => movies.filter((m) => m.status === "wishlist"),
+    () =>
+      movies.filter(
+        (m) => m.status === "wishlist" && !isUpcomingRelease(m.released),
+      ),
     [movies],
   );
   const watchedMovies = useMemo(
@@ -78,8 +90,10 @@ export function MoviesLibraryView({
 
   const filtered = useMemo(() => {
     if (filter === "all") return movies;
-    return movies.filter((m) => m.status === filter);
-  }, [movies, filter]);
+    if (filter === "upcoming") return upcomingMovies;
+    if (filter === "wishlist") return wishlistMovies;
+    return watchedMovies;
+  }, [movies, filter, upcomingMovies, wishlistMovies, watchedMovies]);
 
   return (
     <div className="min-h-screen">
@@ -134,6 +148,16 @@ export function MoviesLibraryView({
             </div>
           ) : (
             <div className="space-y-10">
+              {upcomingMovies.length > 0 && (
+                <MovieSection
+                  title="Próximos estrenos"
+                  subtitle="Películas guardadas que aún no se han estrenado"
+                  movies={upcomingMovies}
+                  onSeeMore={() => setFilter("upcoming")}
+                  onEdit={setEditing}
+                  emptyLabel=""
+                />
+              )}
               <MovieSection
                 title="Wishlist"
                 subtitle="Películas que quieres ver"

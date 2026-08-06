@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { Clapperboard, Heart, Home, Popcorn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MovieStatus, MovieWatchLocation } from "@/lib/types";
-import { MOVIE_WATCH_LOCATION_LABELS } from "@/lib/types";
+import { MOVIE_WATCH_LOCATION_LABELS, formatReleaseDate } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type MovieDestination = "wishlist" | "watched";
@@ -18,6 +19,9 @@ type Props = {
   onLocationChange: (location: MovieWatchLocation) => void;
   score: number | "";
   onScoreChange: (score: number | "") => void;
+  /** Si true, no se puede marcar como Vista (aún no estrenada). */
+  upcoming?: boolean;
+  released?: string | null;
 };
 
 export function MovieDestinationFields({
@@ -29,12 +33,20 @@ export function MovieDestinationFields({
   onLocationChange,
   score,
   onScoreChange,
+  upcoming = false,
+  released = null,
 }: Props) {
+  useEffect(() => {
+    if (upcoming && destination === "watched") {
+      onDestinationChange("wishlist");
+    }
+  }, [upcoming, destination, onDestinationChange]);
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>¿Dónde la guardamos?</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={cn("grid gap-2", upcoming ? "grid-cols-1" : "grid-cols-2")}>
           <button
             type="button"
             onClick={() => onDestinationChange("wishlist")}
@@ -56,30 +68,41 @@ export function MovieDestinationFields({
             <span className="text-sm font-medium">Wishlist</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => onDestinationChange("watched")}
-            className={cn(
-              "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
-              destination === "watched"
-                ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-            )}
-          >
-            <Clapperboard
+          {!upcoming && (
+            <button
+              type="button"
+              onClick={() => onDestinationChange("watched")}
               className={cn(
-                "h-4 w-4",
+                "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
                 destination === "watched"
-                  ? "text-[var(--accent)]"
-                  : "text-[var(--muted)]",
+                  ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                  : "border-[var(--border)] hover:bg-[var(--surface-2)]",
               )}
-            />
-            <span className="text-sm font-medium">Vista</span>
-          </button>
+            >
+              <Clapperboard
+                className={cn(
+                  "h-4 w-4",
+                  destination === "watched"
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--muted)]",
+                )}
+              />
+              <span className="text-sm font-medium">Vista</span>
+            </button>
+          )}
         </div>
+        {upcoming && (
+          <p className="text-xs text-[var(--muted)]">
+            Aún no se ha estrenado
+            {formatReleaseDate(released)
+              ? ` (estreno ${formatReleaseDate(released)})`
+              : ""}
+            . Solo puedes añadirla a la wishlist.
+          </p>
+        )}
       </div>
 
-      {destination === "watched" && (
+      {destination === "watched" && !upcoming && (
         <div className="space-y-3 animate-fade-in">
           <div className="space-y-2">
             <Label htmlFor="movie-viewed-at">Fecha vista</Label>

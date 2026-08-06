@@ -23,6 +23,8 @@ import {
   MOVIE_STATUS_LABELS,
   MOVIE_WATCH_LOCATION_LABELS,
   formatMovieRuntime,
+  formatReleaseDate,
+  isUpcomingRelease,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +57,8 @@ export function EditMovieDialog({
 
   useEffect(() => {
     if (!movie || !open) return;
-    setStatus(movie.status);
+    const upcoming = isUpcomingRelease(movie.released);
+    setStatus(upcoming ? "wishlist" : movie.status);
     setScore(movie.score ?? "");
     setViewedAt(new Date().toISOString().slice(0, 10));
     setLocation("home");
@@ -75,6 +78,11 @@ export function EditMovieDialog({
 
   async function handleSave() {
     if (!movie) return;
+    const upcoming = isUpcomingRelease(movie.released);
+    if (upcoming && status === "watched") {
+      setError("Esta película aún no se ha estrenado");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -190,7 +198,10 @@ export function EditMovieDialog({
 
   if (!movie) return null;
 
-  const editStatuses: MovieStatus[] = ["wishlist", "watched"];
+  const upcoming = isUpcomingRelease(movie.released);
+  const editStatuses: MovieStatus[] = upcoming
+    ? ["wishlist"]
+    : ["wishlist", "watched"];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,6 +247,11 @@ export function EditMovieDialog({
                     {viewings.length === 1 ? "vez vista" : "veces vista"}
                   </p>
                 )}
+                {upcoming && formatReleaseDate(movie.released) && (
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Estreno {formatReleaseDate(movie.released)}
+                  </p>
+                )}
               </div>
               <Button
                 type="button"
@@ -259,33 +275,43 @@ export function EditMovieDialog({
 
         <div className="space-y-2">
           <Label>Estado</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {editStatuses.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatus(s)}
-                className={cn(
-                  "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  status === s
-                    ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                    : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-                )}
-              >
-                <span
+          {upcoming ? (
+            <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
+              Aún no se ha estrenado
+              {formatReleaseDate(movie.released)
+                ? ` (${formatReleaseDate(movie.released)})`
+                : ""}
+              . Solo wishlist.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {editStatuses.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatus(s)}
                   className={cn(
-                    "block text-sm font-medium",
-                    status === s ? "text-[var(--accent)]" : "",
+                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    status === s
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
                   )}
                 >
-                  {MOVIE_STATUS_LABELS[s]}
-                </span>
-              </button>
-            ))}
-          </div>
+                  <span
+                    className={cn(
+                      "block text-sm font-medium",
+                      status === s ? "text-[var(--accent)]" : "",
+                    )}
+                  >
+                    {MOVIE_STATUS_LABELS[s]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {status === "watched" && (
+        {status === "watched" && !upcoming && (
           <>
             <div className="space-y-2">
               <Label htmlFor="movie-score-edit">Puntuación (0–100)</Label>

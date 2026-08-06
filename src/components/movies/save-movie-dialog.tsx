@@ -18,6 +18,7 @@ import {
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { createClient } from "@/lib/supabase/client";
 import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
+import { isUpcomingRelease } from "@/lib/types";
 
 type Props = {
   movie: TmdbMovieResult | null;
@@ -58,6 +59,10 @@ export function SaveMovieDialog({
     if (!movie || !destination) return;
     if (destination === "watched" && !viewedAt) {
       setError("Indica la fecha en que la viste");
+      return;
+    }
+    if (destination === "watched" && isUpcomingRelease(movie.released)) {
+      setError("Esta película aún no se ha estrenado");
       return;
     }
 
@@ -187,6 +192,8 @@ export function SaveMovieDialog({
           onLocationChange={setLocation}
           score={score}
           onScoreChange={setScore}
+          upcoming={isUpcomingRelease(movie.released)}
+          released={movie.released}
         />
 
         {error && (

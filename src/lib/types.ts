@@ -129,6 +129,25 @@ export function formatMovieRuntime(minutes: number | null | undefined): string |
   return `${h}h ${m}min`;
 }
 
+/** True si la fecha de estreno es posterior a hoy (YYYY-MM-DD). */
+export function isUpcomingRelease(
+  released: string | null | undefined,
+): boolean {
+  if (!released) return false;
+  const day = released.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return day > today;
+}
+
+export function formatReleaseDate(released: string | null | undefined): string | null {
+  if (!released) return null;
+  const day = released.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return released;
+  const [y, m, d] = day.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export const STATUS_LABELS: Record<BookStatus, string> = {
   wishlist: "Wishlist",
   owned: "Sin empezar",

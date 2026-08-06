@@ -4,7 +4,12 @@ import Image from "next/image";
 import { Clapperboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { MovieStatus, UserMovie } from "@/lib/types";
-import { formatMovieRuntime, MOVIE_STATUS_LABELS } from "@/lib/types";
+import {
+  formatMovieRuntime,
+  formatReleaseDate,
+  isUpcomingRelease,
+  MOVIE_STATUS_LABELS,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLE: Record<MovieStatus, string> = {
@@ -22,6 +27,7 @@ export function MovieCard({
   onEdit: (movie: UserMovie) => void;
 }) {
   const times = movie.times_watched ?? 0;
+  const upcoming = isUpcomingRelease(movie.released);
 
   return (
     <button
@@ -48,20 +54,24 @@ export function MovieCard({
 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <Badge className={cn("w-fit", STATUS_STYLE[movie.status])}>
-          {MOVIE_STATUS_LABELS[movie.status]}
+          {upcoming ? "Próximo estreno" : MOVIE_STATUS_LABELS[movie.status]}
         </Badge>
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {movie.title}
         </h3>
         <p className="line-clamp-1 text-xs text-[var(--muted)]">
-          {[
-            formatMovieRuntime(movie.runtime),
-            movie.directors.slice(0, 2).join(", ") ||
-              movie.genres.slice(0, 2).join(", ") ||
-              null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || "Sin datos"}
+          {upcoming
+            ? formatReleaseDate(movie.released)
+              ? `Estreno ${formatReleaseDate(movie.released)}`
+              : "Fecha de estreno pendiente"
+            : [
+                formatMovieRuntime(movie.runtime),
+                movie.directors.slice(0, 2).join(", ") ||
+                  movie.genres.slice(0, 2).join(", ") ||
+                  null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Sin datos"}
         </p>
         {movie.providers?.length ? (
           <p className="line-clamp-1 text-[10px] text-[var(--muted)]">
