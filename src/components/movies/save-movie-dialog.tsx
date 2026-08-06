@@ -17,7 +17,7 @@ import {
 } from "@/components/movies/movie-destination-fields";
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { createClient } from "@/lib/supabase/client";
-import type { MovieShelfStatus, TmdbMovieResult } from "@/lib/types";
+import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
 
 type Props = {
   movie: TmdbMovieResult | null;
@@ -35,10 +35,11 @@ export function SaveMovieDialog({
   onSaved,
 }: Props) {
   const [destination, setDestination] = useState<MovieDestination | null>(null);
-  const [shelfStatus, setShelfStatus] = useState<MovieShelfStatus>("owned");
-  const [finishDate, setFinishDate] = useState(
+  const [viewedAt, setViewedAt] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
+  const [location, setLocation] = useState<MovieWatchLocation>("home");
+  const [score, setScore] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -46,42 +47,70 @@ export function SaveMovieDialog({
   useEffect(() => {
     if (!open) return;
     setDestination(null);
-    setShelfStatus("owned");
-    setFinishDate(new Date().toISOString().slice(0, 10));
+    setViewedAt(new Date().toISOString().slice(0, 10));
+    setLocation("home");
+    setScore("");
     setError(null);
     setDone(false);
   }, [open, movie?.tmdbId]);
 
   async function handleSave() {
     if (!movie || !destination) return;
+    if (destination === "watched" && !viewedAt) {
+      setError("Indica la fecha en que la viste");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     const enriched = await enrichTmdbMovie(movie);
-    const status = movieDestinationToStatus(destination, shelfStatus);
+    const status = movieDestinationToStatus(destination);
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("user_movies").insert({
-      user_id: userId,
-      tmdb_id: enriched.tmdbId,
-      title: enriched.title,
-      original_title: enriched.originalTitle,
-      directors: enriched.directors,
-      cover_url: enriched.coverUrl,
-      genres: enriched.genres,
-      released: enriched.released,
-      runtime: enriched.runtime,
-      vote_average: enriched.voteAverage,
-      status,
-      minutes_watched: 0,
-      finish_date: status === "watched" ? finishDate : null,
-    });
+    const { data: inserted, error: insertError } = await supabase
+      .from("user_movies")
+      .insert({
+        user_id: userId,
+        tmdb_id: enriched.tmdbId,
+        title: enriched.title,
+        original_title: enriched.originalTitle,
+        directors: enriched.directors,
+        cover_url: enriched.coverUrl,
+        genres: enriched.genres,
+        released: enriched.released,
+        runtime: enriched.runtime,
+        vote_average: enriched.voteAverage,
+        status,
+        minutes_watched: 0,
+        finish_date: status === "watched" ? viewedAt : null,
+        score: status === "watched" && score !== "" ? score : null,
+      })
+      .select("id")
+      .single();
 
-    setSaving(false);
-    if (insertError) {
-      setError(insertError.message);
+    if (insertError || !inserted) {
+      setSaving(false);
+      setError(insertError?.message ?? "No se pudo guardar");
       return;
     }
 
+    if (status === "watched") {
+      const { error: viewingError } = await supabase
+        .from("user_movie_viewings")
+        .insert({
+          user_movie_id: inserted.id,
+          user_id: userId,
+          viewed_at: viewedAt,
+          location,
+        });
+      if (viewingError) {
+        setSaving(false);
+        setError(viewingError.message);
+        return;
+      }
+    }
+
+    setSaving(false);
     setDone(true);
     onSaved?.();
     setTimeout(() => onOpenChange(false), 700);
@@ -89,12 +118,12 @@ export function SaveMovieDialog({
 
   if (!movie) return null;
 
-  const canSave = destination === "wishlist" || destination === "shelf";
+  const canSave = destination === "wishlist" || destination === "watched";
   const saveLabel =
     destination === "wishlist"
       ? "Añadir a Wishlist"
-      : destination === "shelf"
-        ? "Añadir a la estantería"
+      : destination === "watched"
+        ? "Marcar como vista"
         : "Elige una opción";
 
   const year = movie.released?.slice(0, 4);
@@ -123,7 +152,10 @@ export function SaveMovieDialog({
               {movie.title}
             </p>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              {[year, movie.originalTitle !== movie.title ? movie.originalTitle : null]
+              {[
+                year,
+                movie.originalTitle !== movie.title ? movie.originalTitle : null,
+              ]
                 .filter(Boolean)
                 .join(" · ") || "Sin fecha"}
             </p>
@@ -138,10 +170,12 @@ export function SaveMovieDialog({
         <MovieDestinationFields
           destination={destination}
           onDestinationChange={setDestination}
-          shelfStatus={shelfStatus}
-          onShelfStatusChange={setShelfStatus}
-          finishDate={finishDate}
-          onFinishDateChange={setFinishDate}
+          viewedAt={viewedAt}
+          onViewedAtChange={setViewedAt}
+          location={location}
+          onLocationChange={setLocation}
+          score={score}
+          onScoreChange={setScore}
         />
 
         {error && (

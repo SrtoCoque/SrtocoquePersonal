@@ -4,22 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clapperboard, Plus } from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { AddMovieModal } from "@/components/movies/add-movie-modal";
-import { CurrentlyWatching } from "@/components/movies/currently-watching";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { MovieCard } from "@/components/movies/movie-card";
 import { MovieSection } from "@/components/movies/movie-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
-import type { MovieStatus, UserMovie } from "@/lib/types";
-import { isMovieOnShelf } from "@/lib/types";
+import type { UserMovie } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "shelf" | MovieStatus;
+type Filter = "all" | "wishlist" | "watched";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
-  { id: "shelf", label: "Estantería" },
-  { id: "watching", label: "Viendo" },
   { id: "wishlist", label: "Wishlist" },
   { id: "watched", label: "Vistas" },
 ];
@@ -39,13 +35,31 @@ export function MoviesLibraryView({
 
   const loadMovies = useCallback(async () => {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("user_movies")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: viewings }] = await Promise.all([
+      supabase
+        .from("user_movies")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("user_movie_viewings")
+        .select("user_movie_id")
+        .eq("user_id", userId),
+    ]);
 
-    if (!error && data) setMovies(data as UserMovie[]);
+    if (!error && data) {
+      const counts = new Map<string, number>();
+      for (const row of viewings ?? []) {
+        const id = (row as { user_movie_id: string }).user_movie_id;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      setMovies(
+        (data as UserMovie[]).map((m) => ({
+          ...m,
+          times_watched: counts.get(m.id) ?? 0,
+        })),
+      );
+    }
     setLoading(false);
   }, [userId]);
 
@@ -53,24 +67,17 @@ export function MoviesLibraryView({
     loadMovies();
   }, [loadMovies]);
 
-  const watchingMovies = useMemo(
-    () => movies.filter((m) => m.status === "watching"),
-    [movies],
-  );
   const wishlistMovies = useMemo(
     () => movies.filter((m) => m.status === "wishlist"),
     [movies],
   );
-  const shelfMovies = useMemo(
-    () => movies.filter((m) => isMovieOnShelf(m.status)),
+  const watchedMovies = useMemo(
+    () => movies.filter((m) => m.status === "watched"),
     [movies],
   );
 
-  const currentWatching = watchingMovies[0] ?? null;
-
   const filtered = useMemo(() => {
     if (filter === "all") return movies;
-    if (filter === "shelf") return movies.filter((m) => isMovieOnShelf(m.status));
     return movies.filter((m) => m.status === filter);
   }, [movies, filter]);
 
@@ -127,11 +134,6 @@ export function MoviesLibraryView({
             </div>
           ) : (
             <div className="space-y-10">
-              <CurrentlyWatching
-                movie={currentWatching}
-                onEdit={setEditing}
-                onAdd={() => setAddOpen(true)}
-              />
               <MovieSection
                 title="Wishlist"
                 subtitle="Películas que quieres ver"
@@ -141,12 +143,12 @@ export function MoviesLibraryView({
                 emptyLabel="Tu wishlist está vacía."
               />
               <MovieSection
-                title="Estantería"
-                subtitle="Todo lo que ya tienes (sin empezar, viendo o vistas)"
-                movies={shelfMovies}
-                onSeeMore={() => setFilter("shelf")}
+                title="Vistas"
+                subtitle="Películas que ya has visto"
+                movies={watchedMovies}
+                onSeeMore={() => setFilter("watched")}
                 onEdit={setEditing}
-                emptyLabel="Aún no has añadido películas a tu estantería."
+                emptyLabel="Aún no has marcado ninguna como vista."
               />
             </div>
           )

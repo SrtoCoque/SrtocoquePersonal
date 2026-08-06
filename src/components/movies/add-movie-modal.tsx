@@ -19,7 +19,7 @@ import {
 } from "@/components/movies/movie-destination-fields";
 import { enrichTmdbMovie } from "@/components/movies/enrich-movie";
 import { createClient } from "@/lib/supabase/client";
-import type { MovieShelfStatus, TmdbMovieResult } from "@/lib/types";
+import type { MovieWatchLocation, TmdbMovieResult } from "@/lib/types";
 
 type Props = {
   open: boolean;
@@ -35,10 +35,11 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<TmdbMovieResult | null>(null);
   const [destination, setDestination] = useState<MovieDestination | null>(null);
-  const [shelfStatus, setShelfStatus] = useState<MovieShelfStatus>("owned");
-  const [finishDate, setFinishDate] = useState(
+  const [viewedAt, setViewedAt] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
+  const [location, setLocation] = useState<MovieWatchLocation>("home");
+  const [score, setScore] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,8 +48,9 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
     setResults([]);
     setSelected(null);
     setDestination(null);
-    setShelfStatus("owned");
-    setFinishDate(new Date().toISOString().slice(0, 10));
+    setViewedAt(new Date().toISOString().slice(0, 10));
+    setLocation("home");
+    setScore("");
     setError(null);
   }, []);
 
@@ -102,33 +104,61 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
 
   async function handleSave() {
     if (!selected || !destination) return;
+    if (destination === "watched" && !viewedAt) {
+      setError("Indica la fecha en que la viste");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     const enriched = await enrichTmdbMovie(selected);
-    const status = movieDestinationToStatus(destination, shelfStatus);
+    const status = movieDestinationToStatus(destination);
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("user_movies").insert({
-      user_id: userId,
-      tmdb_id: enriched.tmdbId,
-      title: enriched.title,
-      original_title: enriched.originalTitle,
-      directors: enriched.directors,
-      cover_url: enriched.coverUrl,
-      genres: enriched.genres,
-      released: enriched.released,
-      runtime: enriched.runtime,
-      vote_average: enriched.voteAverage,
-      status,
-      minutes_watched: 0,
-      finish_date: status === "watched" ? finishDate : null,
-    });
+    const { data: inserted, error: insertError } = await supabase
+      .from("user_movies")
+      .insert({
+        user_id: userId,
+        tmdb_id: enriched.tmdbId,
+        title: enriched.title,
+        original_title: enriched.originalTitle,
+        directors: enriched.directors,
+        cover_url: enriched.coverUrl,
+        genres: enriched.genres,
+        released: enriched.released,
+        runtime: enriched.runtime,
+        vote_average: enriched.voteAverage,
+        status,
+        minutes_watched: 0,
+        finish_date: status === "watched" ? viewedAt : null,
+        score: status === "watched" && score !== "" ? score : null,
+      })
+      .select("id")
+      .single();
 
-    setSaving(false);
-    if (insertError) {
-      setError(insertError.message);
+    if (insertError || !inserted) {
+      setSaving(false);
+      setError(insertError?.message ?? "No se pudo guardar");
       return;
     }
+
+    if (status === "watched") {
+      const { error: viewingError } = await supabase
+        .from("user_movie_viewings")
+        .insert({
+          user_movie_id: inserted.id,
+          user_id: userId,
+          viewed_at: viewedAt,
+          location,
+        });
+      if (viewingError) {
+        setSaving(false);
+        setError(viewingError.message);
+        return;
+      }
+    }
+
+    setSaving(false);
     onOpenChange(false);
     onAdded();
   }
@@ -178,7 +208,6 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                     onClick={() => {
                       setSelected(movie);
                       setDestination(null);
-                      setShelfStatus("owned");
                     }}
                     className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-[var(--surface-2)]"
                   >
@@ -262,10 +291,12 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
             <MovieDestinationFields
               destination={destination}
               onDestinationChange={setDestination}
-              shelfStatus={shelfStatus}
-              onShelfStatusChange={setShelfStatus}
-              finishDate={finishDate}
-              onFinishDateChange={setFinishDate}
+              viewedAt={viewedAt}
+              onViewedAtChange={setViewedAt}
+              location={location}
+              onLocationChange={setLocation}
+              score={score}
+              onScoreChange={setScore}
             />
 
             <Button
@@ -275,10 +306,10 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {!destination
-                ? "Elige Wishlist o Estantería"
+                ? "Elige Wishlist o Vista"
                 : destination === "wishlist"
                   ? "Añadir a Wishlist"
-                  : "Añadir a la estantería"}
+                  : "Marcar como vista"}
             </Button>
           </div>
         )}

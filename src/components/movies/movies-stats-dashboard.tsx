@@ -10,10 +10,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CalendarDays, Clapperboard, Clock, Trophy } from "lucide-react";
+import {
+  CalendarDays,
+  Clapperboard,
+  Home,
+  Popcorn,
+  Star,
+  Trophy,
+} from "lucide-react";
 import { MoviesHeader } from "@/components/layout/movies-header";
 import { createClient } from "@/lib/supabase/client";
-import type { UserMovie } from "@/lib/types";
+import type { UserMovie, UserMovieViewing } from "@/lib/types";
 
 const MONTHS = [
   "Ene",
@@ -38,54 +45,63 @@ export function MoviesStatsDashboard({
   email: string | null;
 }) {
   const [movies, setMovies] = useState<UserMovie[]>([]);
+  const [viewings, setViewings] = useState<UserMovieViewing[]>([]);
   const [loading, setLoading] = useState(true);
   const year = new Date().getFullYear();
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("user_movies")
-        .select("*")
-        .eq("user_id", userId);
-      if (data) setMovies(data as UserMovie[]);
+      const [{ data: movieData }, { data: viewingData }] = await Promise.all([
+        supabase.from("user_movies").select("*").eq("user_id", userId),
+        supabase.from("user_movie_viewings").select("*").eq("user_id", userId),
+      ]);
+      if (movieData) setMovies(movieData as UserMovie[]);
+      if (viewingData) setViewings(viewingData as UserMovieViewing[]);
       setLoading(false);
     }
     load();
   }, [userId]);
 
   const stats = useMemo(() => {
-    const watched = movies.filter((m) => m.status === "watched");
-    const watchedThisYear = watched.filter((m) => {
-      if (!m.finish_date) return false;
-      return new Date(m.finish_date).getFullYear() === year;
+    const watchedMovies = movies.filter((m) => m.status === "watched");
+    const viewingsThisYear = viewings.filter((v) => {
+      return new Date(v.viewed_at).getFullYear() === year;
     });
 
     const monthly = MONTHS.map((label, i) => ({
       month: label,
-      peliculas: watchedThisYear.filter((m) => {
-        const d = m.finish_date ? new Date(m.finish_date) : null;
-        return d && d.getMonth() === i;
+      visionados: viewingsThisYear.filter((v) => {
+        return new Date(v.viewed_at).getMonth() === i;
       }).length,
     }));
 
-    const minutes = movies.reduce(
-      (sum, m) => sum + (Number(m.minutes_watched) || 0),
-      0,
-    );
-    const runtimeWatched = watched.reduce(
-      (sum, m) => sum + (Number(m.runtime) || 0),
-      0,
-    );
+    const homeCount = viewings.filter((v) => v.location === "home").length;
+    const cinemaCount = viewings.filter((v) => v.location === "cinema").length;
+
+    const scored = movies.filter((m) => m.score != null);
+    const avgScore =
+      scored.length > 0
+        ? scored.reduce((sum, m) => sum + Number(m.score), 0) / scored.length
+        : null;
+
+    const minutes = viewings.reduce((sum, v) => {
+      const movie = movies.find((m) => m.id === v.user_movie_id);
+      return sum + (Number(movie?.runtime) || 0);
+    }, 0);
 
     return {
-      totalWatched: watched.length,
-      watchedThisYear: watchedThisYear.length,
-      totalMinutes: minutes || runtimeWatched,
+      uniqueWatched: watchedMovies.length,
+      totalViewings: viewings.length,
+      viewingsThisYear: viewingsThisYear.length,
+      homeCount,
+      cinemaCount,
+      avgScore,
       monthly,
       total: movies.length,
+      minutes,
     };
-  }, [movies, year]);
+  }, [movies, viewings, year]);
 
   return (
     <div className="min-h-screen">
@@ -97,13 +113,13 @@ export function MoviesStatsDashboard({
             Estadísticas de películas
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resumen de tu actividad cinefila
+            Visionados, lugares y puntuaciones
           </p>
         </div>
 
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
                 className="h-28 animate-pulse rounded-2xl bg-[var(--surface-2)]"
@@ -112,35 +128,49 @@ export function MoviesStatsDashboard({
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
               <StatCard
                 icon={CalendarDays}
-                label={`Vistas en ${year}`}
-                value={stats.watchedThisYear}
+                label={`Visionados en ${year}`}
+                value={stats.viewingsThisYear}
               />
               <StatCard
                 icon={Trophy}
-                label="Vistas en total"
-                value={stats.totalWatched}
-              />
-              <StatCard
-                icon={Clock}
-                label="Minutos"
-                value={stats.totalMinutes.toLocaleString("es-ES")}
+                label="Visionados en total"
+                value={stats.totalViewings}
               />
               <StatCard
                 icon={Clapperboard}
-                label="En la biblioteca"
-                value={stats.total}
+                label="Películas distintas vistas"
+                value={stats.uniqueWatched}
+              />
+              <StatCard
+                icon={Home}
+                label="Vistas en casa"
+                value={stats.homeCount}
+              />
+              <StatCard
+                icon={Popcorn}
+                label="Vistas en el cine"
+                value={stats.cinemaCount}
+              />
+              <StatCard
+                icon={Star}
+                label="Puntuación media"
+                value={
+                  stats.avgScore != null
+                    ? stats.avgScore.toFixed(1)
+                    : "—"
+                }
               />
             </div>
 
             <section className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-6 animate-slide-up">
               <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold">
-                Películas vistas por mes · {year}
+                Visionados por mes · {year}
               </h2>
               <p className="mb-6 text-sm text-[var(--muted)]">
-                Basado en la fecha de visionado
+                Cada +1 cuenta como un visionado (casa o cine)
               </p>
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -173,7 +203,7 @@ export function MoviesStatsDashboard({
                       cursor={{ fill: "var(--surface-2)" }}
                     />
                     <Bar
-                      dataKey="peliculas"
+                      dataKey="visionados"
                       fill="var(--accent)"
                       radius={[6, 6, 0, 0]}
                       maxBarSize={40}
@@ -182,6 +212,13 @@ export function MoviesStatsDashboard({
                 </ResponsiveContainer>
               </div>
             </section>
+
+            {stats.minutes > 0 && (
+              <p className="mt-4 text-center text-sm text-[var(--muted)]">
+                ~{stats.minutes.toLocaleString("es-ES")} minutos de metraje
+                visionado (según duración TMDB × veces vistas)
+              </p>
+            )}
           </>
         )}
       </main>

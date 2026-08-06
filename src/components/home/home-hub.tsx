@@ -42,7 +42,7 @@ const SECTIONS = [
   {
     href: "/movies",
     title: "Películas",
-    description: "Wishlist, viendo y vistas",
+    description: "Wishlist y vistas",
     icon: Clapperboard,
     available: true,
     accent: "from-rose-500/20 to-red-500/5",

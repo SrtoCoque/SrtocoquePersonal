@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Clapperboard, Star } from "lucide-react";
+import { Clapperboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { MovieStatus, UserMovie } from "@/lib/types";
 import { MOVIE_STATUS_LABELS } from "@/lib/types";
@@ -21,6 +21,8 @@ export function MovieCard({
   movie: UserMovie;
   onEdit: (movie: UserMovie) => void;
 }) {
+  const times = movie.times_watched ?? 0;
+
   return (
     <button
       type="button"
@@ -57,19 +59,14 @@ export function MovieCard({
             "Sin datos"}
         </p>
 
-        {movie.status === "watching" && Number(movie.minutes_watched) > 0 && (
-          <p className="mt-auto text-[10px] text-[var(--muted)]">
-            {Number(movie.minutes_watched)} min vistos
-          </p>
-        )}
-
-        {movie.rating ? (
-          <div className="mt-auto flex items-center gap-0.5 pt-1 text-amber-500">
-            {Array.from({ length: movie.rating }).map((_, i) => (
-              <Star key={i} className="h-3 w-3 fill-current" />
-            ))}
-          </div>
-        ) : null}
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
+          {movie.score != null ? <span>{movie.score}/100</span> : null}
+          {times > 0 ? (
+            <span>
+              {times} {times === 1 ? "vista" : "vistas"}
+            </span>
+          ) : null}
+        </div>
       </div>
     </button>
   );

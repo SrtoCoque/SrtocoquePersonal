@@ -87,6 +87,19 @@ export type UserMovie = {
   minutes_watched: number;
   finish_date: string | null;
   rating: number | null;
+  score: number | null;
+  created_at: string;
+  times_watched?: number;
+};
+
+export type MovieWatchLocation = "home" | "cinema";
+
+export type UserMovieViewing = {
+  id: string;
+  user_movie_id: string;
+  user_id: string;
+  viewed_at: string;
+  location: MovieWatchLocation;
   created_at: string;
 };
 
@@ -139,11 +152,9 @@ export const MOVIE_STATUS_LABELS: Record<MovieStatus, string> = {
   watched: "Vista",
 };
 
-export const MOVIE_STATUS_HINTS: Record<MovieStatus, string> = {
-  wishlist: "La quiero, pero aún no la tengo",
-  owned: "La tengo, sin empezar",
-  watching: "La tengo · viendo ahora",
-  watched: "La tengo · ya vista",
+export const MOVIE_WATCH_LOCATION_LABELS: Record<MovieWatchLocation, string> = {
+  home: "En casa",
+  cinema: "En el cine",
 };
 
 export type ShelfStatus = Extract<BookStatus, "owned" | "reading" | "read">;
