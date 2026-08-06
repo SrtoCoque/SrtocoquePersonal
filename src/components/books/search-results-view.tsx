@@ -4,23 +4,53 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookMarked, Loader2, Search, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  Bookmark,
+  BookMarked,
+  BookOpen,
+  Check,
+  Loader2,
+  Search,
+  Star,
+} from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
 import { EditBookDialog } from "@/components/books/edit-book-dialog";
 import { SaveBookDialog } from "@/components/books/save-book-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import type { GoogleBookResult, UserBook } from "@/lib/types";
-import { STATUS_LABELS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLE: Record<UserBook["status"], string> = {
-  wishlist: "bg-amber-500/90 text-white",
-  owned: "bg-teal-500/90 text-white",
-  reading: "bg-sky-500/90 text-white",
-  read: "bg-emerald-500/90 text-white",
+const IN_LIBRARY: Record<
+  UserBook["status"],
+  { label: string; bar: string; ring: string; Icon: typeof Check }
+> = {
+  wishlist: {
+    label: "En tu wishlist",
+    bar: "bg-amber-500 text-white",
+    ring: "ring-2 ring-amber-500/70 border-amber-500/40",
+    Icon: Bookmark,
+  },
+  owned: {
+    label: "En tu estantería",
+    bar: "bg-teal-600 text-white",
+    ring: "ring-2 ring-teal-500/70 border-teal-500/40",
+    Icon: BookOpen,
+  },
+  reading: {
+    label: "Lo estás leyendo",
+    bar: "bg-sky-500 text-white",
+    ring: "ring-2 ring-sky-500/70 border-sky-500/40",
+    Icon: BookOpen,
+  },
+  read: {
+    label: "Ya lo has leído",
+    bar: "bg-emerald-600 text-white",
+    ring: "ring-2 ring-emerald-500/70 border-emerald-500/40",
+    Icon: Check,
+  },
 };
 
 export function SearchResultsView({
@@ -134,7 +164,7 @@ export function SearchResultsView({
             Buscar libros
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Busca por título o autor · si ya lo tienes, se abre editar
+            Título o autor · los que ya tienes se marcan con claridad
           </p>
         </div>
 
@@ -185,12 +215,20 @@ export function SearchResultsView({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">
               {results.map((book) => {
                 const existing = libraryByGoogleId.get(book.googleBooksId);
+                const inLib = existing ? IN_LIBRARY[existing.status] : null;
+                const StatusIcon = inLib?.Icon;
+
                 return (
                   <button
                     key={book.googleBooksId}
                     type="button"
                     onClick={() => handleClick(book)}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className={cn(
+                      "group flex flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5",
+                      inLib
+                        ? inLib.ring
+                        : "border-[var(--border)] hover:border-[var(--accent)]/40",
+                    )}
                   >
                     <div className="relative aspect-[2/3] w-full bg-[var(--surface-3)]">
                       {book.coverUrl ? (
@@ -198,7 +236,10 @@ export function SearchResultsView({
                           src={book.coverUrl}
                           alt={book.title}
                           fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          className={cn(
+                            "object-cover transition-transform duration-500 group-hover:scale-105",
+                            inLib && "brightness-[0.85]",
+                          )}
                           sizes="(max-width:640px) 50vw, 200px"
                           unoptimized
                         />
@@ -207,16 +248,17 @@ export function SearchResultsView({
                           <BookMarked className="h-8 w-8 opacity-40" />
                         </div>
                       )}
-                      {existing && (
-                        <Badge
+                      {inLib && StatusIcon ? (
+                        <div
                           className={cn(
-                            "absolute left-2 top-2 shadow-sm",
-                            STATUS_STYLE[existing.status],
+                            "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-2.5 text-center text-xs font-semibold leading-tight shadow-lg sm:text-sm",
+                            inLib.bar,
                           )}
                         >
-                          {STATUS_LABELS[existing.status]}
-                        </Badge>
-                      )}
+                          <StatusIcon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
+                          <span className="line-clamp-1">{inLib.label}</span>
+                        </div>
+                      ) : null}
                     </div>
                     <div className="flex flex-1 flex-col gap-1 p-3">
                       <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">

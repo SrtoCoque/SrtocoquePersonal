@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   Gamepad2,
-  Home,
   Library,
   LogOut,
   Plus,
@@ -38,11 +37,12 @@ export function GamesHeader({
 
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--background)]/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-        <div className="flex items-center gap-6 min-w-0">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-6">
           <Link
             href="/games"
-            className="flex items-center gap-2 shrink-0 font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight"
+            aria-label="Inicio de videojuegos"
+            className="flex shrink-0 items-center gap-2 font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white">
               <Gamepad2 className="h-4 w-4" />
@@ -50,21 +50,15 @@ export function GamesHeader({
             <span className="hidden sm:inline">Videojuegos</span>
           </Link>
 
-          <nav className="flex items-center gap-1">
-            <Link
-              href="/home"
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]"
-            >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Inicio</span>
-            </Link>
+          <nav className="flex items-center gap-0.5 sm:gap-1">
             <Link
               href="/games"
+              aria-label="Biblioteca"
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
                 pathname === "/games"
-                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
               )}
             >
               <Library className="h-4 w-4" />
@@ -76,22 +70,22 @@ export function GamesHeader({
               aria-label="Buscar"
               aria-expanded={searchOpen}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                "inline-flex items-center justify-center rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
                 searchOpen || pathname.startsWith("/games/search")
-                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
               )}
             >
               <Search className="h-4 w-4" />
-              <span>Buscar</span>
             </button>
             <Link
               href="/games/stats"
+              aria-label="Estadísticas"
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm transition-colors sm:px-2.5",
                 pathname.startsWith("/games/stats")
-                  ? "bg-[var(--surface-2)] text-[var(--foreground)] font-medium"
-                  : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]/60",
+                  ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                  : "text-[var(--muted)] hover:bg-[var(--surface-2)]/60 hover:text-[var(--foreground)]",
               )}
             >
               <BarChart3 className="h-4 w-4" />
@@ -101,18 +95,22 @@ export function GamesHeader({
         </div>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          {onAddGame && (
-            <Button size="sm" onClick={onAddGame} className="gap-1.5">
+          {onAddGame ? (
+            <Button
+              size="sm"
+              onClick={onAddGame}
+              className="hidden gap-1.5 sm:inline-flex"
+            >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">Añadir juego</span>
+              Añadir juego
             </Button>
-          )}
+          ) : null}
           <ThemeToggle />
-          {email && (
-            <span className="hidden md:inline max-w-[140px] truncate text-xs text-[var(--muted)]">
+          {email ? (
+            <span className="hidden max-w-[140px] truncate text-xs text-[var(--muted)] md:inline">
               {email}
             </span>
-          )}
+          ) : null}
           <Button
             variant="ghost"
             size="icon"

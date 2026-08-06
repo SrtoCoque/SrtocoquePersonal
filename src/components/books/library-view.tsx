@@ -18,9 +18,9 @@ type Filter = "all" | "shelf" | BookStatus;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
+  { id: "wishlist", label: "Wishlist" },
   { id: "shelf", label: "Estantería" },
   { id: "reading", label: "Leyendo" },
-  { id: "wishlist", label: "Wishlist" },
   { id: "read", label: "Leídos" },
 ];
 

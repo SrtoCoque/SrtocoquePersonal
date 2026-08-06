@@ -18,9 +18,8 @@ type Filter = "all" | "inTheaters" | "upcoming" | "wishlist" | "watched";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "Todos" },
-  { id: "inTheaters", label: "En el cine" },
-  { id: "upcoming", label: "Estrenos" },
   { id: "wishlist", label: "Wishlist" },
+  { id: "upcoming", label: "Estrenos" },
   { id: "watched", label: "Vistas" },
 ];
 
@@ -164,6 +163,16 @@ export function MoviesLibraryView({
                   Añadir película
                 </Button>
               </div>
+              {upcomingMovies.length > 0 && (
+                <MovieSection
+                  title="Próximos estrenos"
+                  subtitle="Películas guardadas que aún no se han estrenado"
+                  movies={upcomingMovies}
+                  onSeeMore={() => setFilter("upcoming")}
+                  onEdit={setEditing}
+                  emptyLabel=""
+                />
+              )}
               <RecommendedMoviesSection
                 userId={userId}
                 movies={movies}
@@ -173,12 +182,6 @@ export function MoviesLibraryView({
             </div>
           ) : (
             <div className="space-y-10">
-              <RecommendedMoviesSection
-                userId={userId}
-                movies={movies}
-                onLibraryChange={loadMovies}
-                limit={8}
-              />
               {inTheatersMovies.length > 0 && (
                 <MovieSection
                   title="En el cine"
@@ -199,6 +202,12 @@ export function MoviesLibraryView({
                   emptyLabel=""
                 />
               )}
+              <RecommendedMoviesSection
+                userId={userId}
+                movies={movies}
+                onLibraryChange={loadMovies}
+                limit={8}
+              />
               <MovieSection
                 title="Wishlist"
                 subtitle="Películas que quieres ver"

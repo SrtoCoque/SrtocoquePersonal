@@ -5,6 +5,7 @@ import { Clapperboard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { MovieStatus, UserMovie } from "@/lib/types";
 import {
+  formatDaysUntilRelease,
   formatMovieRuntime,
   formatReleaseDate,
   isInTheatersRelease,
@@ -30,6 +31,7 @@ export function MovieCard({
   const times = movie.times_watched ?? 0;
   const upcoming = isUpcomingRelease(movie.released);
   const inTheaters = !upcoming && isInTheatersRelease(movie.released);
+  const daysLeft = formatDaysUntilRelease(movie.released);
 
   return (
     <button
@@ -64,7 +66,7 @@ export function MovieCard({
           )}
         >
           {upcoming
-            ? "Próximo estreno"
+            ? daysLeft ?? "Próximo estreno"
             : inTheaters
               ? "En el cine"
               : MOVIE_STATUS_LABELS[movie.status]}
@@ -74,9 +76,14 @@ export function MovieCard({
         </h3>
         <p className="line-clamp-1 text-xs text-[var(--muted)]">
           {upcoming
-            ? formatReleaseDate(movie.released)
-              ? `Estreno ${formatReleaseDate(movie.released)}`
-              : "Fecha de estreno pendiente"
+            ? [
+                formatReleaseDate(movie.released)
+                  ? `Estreno ${formatReleaseDate(movie.released)}`
+                  : null,
+                daysLeft,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Fecha de estreno pendiente"
             : inTheaters && formatReleaseDate(movie.released)
               ? `Estreno ${formatReleaseDate(movie.released)}`
               : [

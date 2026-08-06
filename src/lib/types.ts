@@ -178,6 +178,29 @@ export function formatReleaseDate(released: string | null | undefined): string |
   return `${d}/${m}/${y}`;
 }
 
+/** Días hasta el estreno (solo si es futuro). */
+export function daysUntilRelease(
+  released: string | null | undefined,
+): number | null {
+  if (!released) return null;
+  const day = released.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (day <= today) return null;
+  const ms =
+    Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
+}
+
+export function formatDaysUntilRelease(
+  released: string | null | undefined,
+): string | null {
+  const days = daysUntilRelease(released);
+  if (days == null) return null;
+  if (days === 1) return "Mañana";
+  return `En ${days} días`;
+}
+
 export const STATUS_LABELS: Record<BookStatus, string> = {
   wishlist: "Wishlist",
   owned: "Sin empezar",
