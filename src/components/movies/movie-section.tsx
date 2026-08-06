@@ -7,12 +7,13 @@ import type { UserMovie } from "@/lib/types";
 
 export function MovieSection({
   title,
-  subtitle: _subtitle,
+  subtitle,
   movies,
   limit = 12,
   onSeeMore,
   onEdit,
   emptyLabel,
+  compactCards = false,
 }: {
   title: string;
   subtitle?: string;
@@ -21,9 +22,12 @@ export function MovieSection({
   onSeeMore: () => void;
   onEdit: (movie: UserMovie) => void;
   emptyLabel: string;
+  /** Misma densidad visual que Próximos estrenos. */
+  compactCards?: boolean;
 }) {
-  void _subtitle;
   const visible = movies.slice(0, limit);
+  const countLabel = `${movies.length} ${movies.length === 1 ? "película" : "películas"}`;
+  const meta = subtitle ? `${countLabel} · ${subtitle}` : countLabel;
 
   return (
     <section className="animate-slide-up">
@@ -32,9 +36,7 @@ export function MovieSection({
           <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold tracking-tight sm:text-2xl">
             {title}
           </h2>
-          <p className="text-sm text-[var(--muted)]">
-            {movies.length} {movies.length === 1 ? "película" : "películas"}
-          </p>
+          <p className="text-sm text-[var(--muted)]">{meta}</p>
         </div>
 
         {movies.length > 0 && (
@@ -56,7 +58,12 @@ export function MovieSection({
       ) : (
         <MediaScrollRow>
           {visible.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} onEdit={onEdit} />
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              onEdit={onEdit}
+              compact={compactCards}
+            />
           ))}
         </MediaScrollRow>
       )}

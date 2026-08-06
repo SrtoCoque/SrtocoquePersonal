@@ -58,7 +58,7 @@ export function RecommendedMovieCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5",
+        "group flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5",
         statusMeta
           ? statusMeta.ring
           : "border-[var(--border)] hover:border-[var(--accent)]/40",

@@ -42,9 +42,12 @@ const STATUS_BAR: Record<
 export function MovieCard({
   movie,
   onEdit,
+  compact = false,
 }: {
   movie: UserMovie;
   onEdit: (movie: UserMovie) => void;
+  /** Misma densidad que Próximos estrenos / recomendados. */
+  compact?: boolean;
 }) {
   const times = movie.times_watched ?? 0;
   const upcoming = isUpcomingRelease(movie.released);
@@ -57,7 +60,7 @@ export function MovieCard({
     <button
       type="button"
       onClick={() => onEdit(movie)}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+      className="group relative flex w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
     >
       <div className="relative aspect-[2/3] w-full overflow-hidden bg-[var(--surface-3)]">
         {movie.cover_url ? (
@@ -85,7 +88,12 @@ export function MovieCard({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      <div
+        className={cn(
+          "flex flex-1 flex-col p-3",
+          compact ? "gap-1" : "gap-2",
+        )}
+      >
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {movie.title}
         </h3>
@@ -110,18 +118,20 @@ export function MovieCard({
                   .filter(Boolean)
                   .join(" · ") || "Sin datos"}
         </p>
-        {movie.providers?.length ? (
+        {!compact && movie.providers?.length ? (
           <MovieProviderLogos providers={movie.providers} limit={3} />
         ) : null}
 
-        <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
-          {movie.score != null ? <span>{movie.score}/100</span> : null}
-          {times > 0 ? (
-            <span>
-              {times} {times === 1 ? "vista" : "vistas"}
-            </span>
-          ) : null}
-        </div>
+        {!compact ? (
+          <div className="mt-auto flex flex-wrap items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
+            {movie.score != null ? <span>{movie.score}/100</span> : null}
+            {times > 0 ? (
+              <span>
+                {times} {times === 1 ? "vista" : "vistas"}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </button>
   );

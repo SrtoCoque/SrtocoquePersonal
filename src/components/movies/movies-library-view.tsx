@@ -245,11 +245,12 @@ export function MoviesLibraryView({
               {inTheatersMovies.length > 0 && (
                 <MovieSection
                   title="En el cine"
-                  subtitle="Estrenadas en las últimas dos semanas"
+                  subtitle="Últimas 2 semanas"
                   movies={inTheatersMovies}
                   onSeeMore={() => setFilterAndUrl("inTheaters")}
                   onEdit={setEditing}
                   emptyLabel=""
+                  compactCards
                 />
               )}
               <UpcomingMoviesSection
@@ -271,6 +272,7 @@ export function MoviesLibraryView({
                 onSeeMore={() => setFilterAndUrl("wishlist")}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía."
+                compactCards
               />
               <MovieSection
                 title="Vistas"
@@ -279,6 +281,7 @@ export function MoviesLibraryView({
                 onSeeMore={() => setFilterAndUrl("watched")}
                 onEdit={setEditing}
                 emptyLabel="Aún no has marcado ninguna como vista."
+                compactCards
               />
             </div>
           )

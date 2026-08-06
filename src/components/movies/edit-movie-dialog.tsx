@@ -59,7 +59,6 @@ export function EditMovieDialog({
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
-  const [statusPickerOpen, setStatusPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!movie || !open) return;
@@ -71,7 +70,6 @@ export function EditMovieDialog({
     setError(null);
     setHistoryOpen(false);
     setTrailerKey(null);
-    setStatusPickerOpen(false);
 
     async function loadViewings() {
       const supabase = createClient();
@@ -313,64 +311,40 @@ export function EditMovieDialog({
         </div>
 
         <div className="space-y-2">
+          <Label>Estado</Label>
           {upcoming ? (
-            <>
-              <Label>Estado</Label>
-              <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
-                Aún no se ha estrenado
-                {formatReleaseDate(movie.released)
-                  ? ` (${formatReleaseDate(movie.released)})`
-                  : ""}
-                . Solo wishlist.
-              </p>
-            </>
+            <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
+              Aún no se ha estrenado
+              {formatReleaseDate(movie.released)
+                ? ` (${formatReleaseDate(movie.released)})`
+                : ""}
+              . Solo wishlist.
+            </p>
           ) : (
-            <>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm">
-                  <span className="text-[var(--muted)]">Estado:</span>{" "}
-                  <span className="font-medium">
-                    {MOVIE_STATUS_LABELS[status]}
-                  </span>
-                </p>
+            <div className="grid grid-cols-2 gap-2">
+              {editStatuses.map((s) => (
                 <button
+                  key={s}
                   type="button"
-                  onClick={() => setStatusPickerOpen((o) => !o)}
-                  className="shrink-0 text-sm font-medium text-[var(--accent)] hover:underline"
+                  onClick={() => setStatus(s)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    status === s
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
+                  )}
                 >
-                  {statusPickerOpen ? "Cerrar" : "Cambiar"}
+                  <span
+                    className={cn(
+                      "block text-sm font-medium",
+                      status === s ? "text-[var(--accent)]" : "",
+                    )}
+                  >
+                    {MOVIE_STATUS_LABELS[s]}
+                  </span>
                 </button>
-              </div>
-              {statusPickerOpen ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {editStatuses.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => {
-                        setStatus(s);
-                        setStatusPickerOpen(false);
-                      }}
-                      className={cn(
-                        "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                        status === s
-                          ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                          : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "block text-sm font-medium",
-                          status === s ? "text-[var(--accent)]" : "",
-                        )}
-                      >
-                        {MOVIE_STATUS_LABELS[s]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </>
+              ))}
+            </div>
           )}
         </div>
 
