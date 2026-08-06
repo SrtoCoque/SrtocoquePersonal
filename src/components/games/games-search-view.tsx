@@ -1,15 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Gamepad2, Loader2, Search, Star } from "lucide-react";
 import { GamesHeader } from "@/components/layout/games-header";
+import { EditGameDialog } from "@/components/games/edit-game-dialog";
 import { SaveGameDialog } from "@/components/games/save-game-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { RawgGameResult } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { RawgGameResult, UserGame } from "@/lib/types";
+import { GAME_STATUS_LABELS } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const STATUS_STYLE: Record<UserGame["status"], string> = {
+  wishlist: "bg-amber-500/90 text-white",
+  owned: "bg-violet-500/90 text-white",
+  playing: "bg-sky-500/90 text-white",
+  completed: "bg-emerald-500/90 text-white",
+};
 
 export function GamesSearchView({
   userId,
@@ -23,9 +35,32 @@ export function GamesSearchView({
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<RawgGameResult[]>([]);
+  const [library, setLibrary] = useState<UserGame[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<RawgGameResult | null>(null);
+  const [selectedNew, setSelectedNew] = useState<RawgGameResult | null>(null);
+  const [editing, setEditing] = useState<UserGame | null>(null);
+
+  const libraryByRawgId = useMemo(() => {
+    const map = new Map<number, UserGame>();
+    for (const g of library) {
+      if (g.rawg_id != null) map.set(g.rawg_id, g);
+    }
+    return map;
+  }, [library]);
+
+  const loadLibrary = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("user_games")
+      .select("*")
+      .eq("user_id", userId);
+    if (data) setLibrary(data as UserGame[]);
+  }, [userId]);
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -72,6 +107,15 @@ export function GamesSearchView({
     router.push(`/games/search?q=${encodeURIComponent(q)}`);
   }
 
+  function handleClick(game: RawgGameResult) {
+    const existing = libraryByRawgId.get(game.rawgId);
+    if (existing) {
+      setEditing(existing);
+      return;
+    }
+    setSelectedNew(game);
+  }
+
   return (
     <div className="min-h-screen">
       <GamesHeader email={email} />
@@ -90,7 +134,7 @@ export function GamesSearchView({
             Buscar videojuegos
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados de RAWG ordenados por relevancia
+            Resultados de RAWG · si ya lo tienes, se abre editar
           </p>
         </div>
 
@@ -139,48 +183,63 @@ export function GamesSearchView({
               {results.length} resultados para «{initialQuery}»
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">
-              {results.map((game) => (
-                <button
-                  key={game.rawgId}
-                  type="button"
-                  onClick={() => setSelected(game)}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40"
-                >
-                  <div className="relative aspect-[3/4] w-full bg-[var(--surface-3)]">
-                    {game.coverUrl ? (
-                      <Image
-                        src={game.coverUrl}
-                        alt={game.title}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        sizes="200px"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-[var(--muted)]">
-                        <Gamepad2 className="h-8 w-8 opacity-40" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1 p-3">
-                    <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
-                      {game.title}
-                    </h2>
-                    <p className="line-clamp-1 text-xs text-[var(--muted)]">
-                      {game.platforms.slice(0, 2).join(", ")}
-                    </p>
-                    <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
-                      {game.metacritic ? <span>MC {game.metacritic}</span> : null}
-                      {game.rating ? (
-                        <span className="inline-flex items-center gap-0.5 text-amber-500">
-                          <Star className="h-3 w-3 fill-current" />
-                          {game.rating.toFixed(1)}
-                        </span>
-                      ) : null}
+              {results.map((game) => {
+                const existing = libraryByRawgId.get(game.rawgId);
+                return (
+                  <button
+                    key={game.rawgId}
+                    type="button"
+                    onClick={() => handleClick(game)}
+                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40"
+                  >
+                    <div className="relative aspect-[3/4] w-full bg-[var(--surface-3)]">
+                      {game.coverUrl ? (
+                        <Image
+                          src={game.coverUrl}
+                          alt={game.title}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          sizes="200px"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[var(--muted)]">
+                          <Gamepad2 className="h-8 w-8 opacity-40" />
+                        </div>
+                      )}
+                      {existing && (
+                        <Badge
+                          className={cn(
+                            "absolute left-2 top-2 shadow-sm",
+                            STATUS_STYLE[existing.status],
+                          )}
+                        >
+                          {GAME_STATUS_LABELS[existing.status]}
+                        </Badge>
+                      )}
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="flex flex-1 flex-col gap-1 p-3">
+                      <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
+                        {game.title}
+                      </h2>
+                      <p className="line-clamp-1 text-xs text-[var(--muted)]">
+                        {game.platforms.slice(0, 2).join(", ")}
+                      </p>
+                      <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
+                        {game.metacritic ? (
+                          <span>MC {game.metacritic}</span>
+                        ) : null}
+                        {game.rating ? (
+                          <span className="inline-flex items-center gap-0.5 text-amber-500">
+                            <Star className="h-3 w-3 fill-current" />
+                            {game.rating.toFixed(1)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
@@ -199,12 +258,22 @@ export function GamesSearchView({
       </main>
 
       <SaveGameDialog
-        game={selected}
-        open={!!selected}
+        game={selectedNew}
+        open={!!selectedNew}
         onOpenChange={(o) => {
-          if (!o) setSelected(null);
+          if (!o) setSelectedNew(null);
         }}
         userId={userId}
+        onSaved={loadLibrary}
+      />
+      <EditGameDialog
+        game={editing}
+        open={!!editing}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        onSaved={loadLibrary}
+        onDeleted={loadLibrary}
       />
     </div>
   );

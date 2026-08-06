@@ -1,15 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, BookMarked, Loader2, Search, Star } from "lucide-react";
 import { AppHeader } from "@/components/layout/app-header";
+import { EditBookDialog } from "@/components/books/edit-book-dialog";
 import { SaveBookDialog } from "@/components/books/save-book-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { GoogleBookResult } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
+import type { GoogleBookResult, UserBook } from "@/lib/types";
+import { STATUS_LABELS } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+const STATUS_STYLE: Record<UserBook["status"], string> = {
+  wishlist: "bg-amber-500/90 text-white",
+  owned: "bg-teal-500/90 text-white",
+  reading: "bg-sky-500/90 text-white",
+  read: "bg-emerald-500/90 text-white",
+};
 
 export function SearchResultsView({
   userId,
@@ -23,9 +35,32 @@ export function SearchResultsView({
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<GoogleBookResult[]>([]);
+  const [library, setLibrary] = useState<UserBook[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<GoogleBookResult | null>(null);
+  const [selectedNew, setSelectedNew] = useState<GoogleBookResult | null>(null);
+  const [editing, setEditing] = useState<UserBook | null>(null);
+
+  const libraryByGoogleId = useMemo(() => {
+    const map = new Map<string, UserBook>();
+    for (const b of library) {
+      if (b.google_books_id) map.set(b.google_books_id, b);
+    }
+    return map;
+  }, [library]);
+
+  const loadLibrary = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("user_books")
+      .select("*")
+      .eq("user_id", userId);
+    if (data) setLibrary(data as UserBook[]);
+  }, [userId]);
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
 
   useEffect(() => {
     setQuery(initialQuery);
@@ -72,6 +107,15 @@ export function SearchResultsView({
     router.push(`/search?q=${encodeURIComponent(q)}`);
   }
 
+  function handleClick(book: GoogleBookResult) {
+    const existing = libraryByGoogleId.get(book.googleBooksId);
+    if (existing) {
+      setEditing(existing);
+      return;
+    }
+    setSelectedNew(book);
+  }
+
   return (
     <div className="min-h-screen">
       <AppHeader email={email} />
@@ -90,7 +134,7 @@ export function SearchResultsView({
             Buscar libros
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados ordenados por relevancia (título, popularidad y señales de calidad)
+            Resultados por relevancia · si ya lo tienes, se abre editar
           </p>
         </div>
 
@@ -139,63 +183,88 @@ export function SearchResultsView({
               {results.length} resultados para «{initialQuery}»
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4 animate-fade-in">
-              {results.map((book) => (
-                <button
-                  key={book.googleBooksId}
-                  type="button"
-                  onClick={() => setSelected(book)}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                >
-                  <div className="relative aspect-[2/3] w-full bg-[var(--surface-3)]">
-                    {book.coverUrl ? (
-                      <Image
-                        src={book.coverUrl}
-                        alt={book.title}
-                        fill
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        sizes="(max-width:640px) 50vw, 200px"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--muted)]">
-                        <BookMarked className="h-8 w-8 opacity-40" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1 p-3">
-                    <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
-                      {book.title}
-                    </h2>
-                    <p className="line-clamp-1 text-xs text-[var(--muted)]">
-                      {book.authors.join(", ")}
-                    </p>
-                    <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
-                      {book.totalPages ? <span>{book.totalPages} pág.</span> : null}
-                      {book.averageRating ? (
-                        <span className="inline-flex items-center gap-0.5 text-amber-500">
-                          <Star className="h-3 w-3 fill-current" />
-                          {book.averageRating.toFixed(1)}
-                          {book.ratingsCount
-                            ? ` (${book.ratingsCount})`
-                            : null}
-                        </span>
-                      ) : null}
+              {results.map((book) => {
+                const existing = libraryByGoogleId.get(book.googleBooksId);
+                return (
+                  <button
+                    key={book.googleBooksId}
+                    type="button"
+                    onClick={() => handleClick(book)}
+                    className="group flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--accent)]/40 hover:shadow-lg hover:shadow-[var(--accent)]/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  >
+                    <div className="relative aspect-[2/3] w-full bg-[var(--surface-3)]">
+                      {book.coverUrl ? (
+                        <Image
+                          src={book.coverUrl}
+                          alt={book.title}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-105"
+                          sizes="(max-width:640px) 50vw, 200px"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--muted)]">
+                          <BookMarked className="h-8 w-8 opacity-40" />
+                        </div>
+                      )}
+                      {existing && (
+                        <Badge
+                          className={cn(
+                            "absolute left-2 top-2 shadow-sm",
+                            STATUS_STYLE[existing.status],
+                          )}
+                        >
+                          {STATUS_LABELS[existing.status]}
+                        </Badge>
+                      )}
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="flex flex-1 flex-col gap-1 p-3">
+                      <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
+                        {book.title}
+                      </h2>
+                      <p className="line-clamp-1 text-xs text-[var(--muted)]">
+                        {book.authors.join(", ")}
+                      </p>
+                      <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
+                        {book.totalPages ? (
+                          <span>{book.totalPages} pág.</span>
+                        ) : null}
+                        {book.averageRating ? (
+                          <span className="inline-flex items-center gap-0.5 text-amber-500">
+                            <Star className="h-3 w-3 fill-current" />
+                            {book.averageRating.toFixed(1)}
+                            {book.ratingsCount
+                              ? ` (${book.ratingsCount})`
+                              : null}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
       </main>
 
       <SaveBookDialog
-        book={selected}
-        open={!!selected}
+        book={selectedNew}
+        open={!!selectedNew}
         onOpenChange={(o) => {
-          if (!o) setSelected(null);
+          if (!o) setSelectedNew(null);
         }}
         userId={userId}
+        onSaved={loadLibrary}
+      />
+      <EditBookDialog
+        book={editing}
+        open={!!editing}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
+        onSaved={loadLibrary}
+        onDeleted={loadLibrary}
       />
     </div>
   );
