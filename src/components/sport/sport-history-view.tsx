@@ -30,6 +30,16 @@ function categorySortIndex(slug: string): number {
   return i === -1 ? 99 : i;
 }
 
+function addCategoryCount(
+  byDate: Map<string, Map<string, number>>,
+  day: string,
+  category: string,
+) {
+  if (!byDate.has(day)) byDate.set(day, new Map());
+  const cats = byDate.get(day)!;
+  cats.set(category, (cats.get(category) ?? 0) + 1);
+}
+
 export function SportHistoryView({
   email,
   userId,
@@ -43,33 +53,58 @@ export function SportHistoryView({
 
   const load = useCallback(async () => {
     const supabase = createClient();
-    const { data, error: qError } = await supabase
-      .from("user_strength_sessions")
-      .select("category, performed_at")
-      .eq("user_id", userId)
-      .order("performed_at", { ascending: false });
+    const [strengthRes, cardioRes] = await Promise.all([
+      supabase
+        .from("user_strength_sessions")
+        .select("category, performed_at")
+        .eq("user_id", userId)
+        .order("performed_at", { ascending: false }),
+      supabase
+        .from("user_cardio_workouts")
+        .select("performed_at")
+        .eq("user_id", userId)
+        .order("performed_at", { ascending: false }),
+    ]);
 
-    if (qError) {
+    if (strengthRes.error) {
       setError(
-        qError.message.includes("user_strength_sessions") ||
-          qError.code === "42P01" ||
-          qError.message.toLowerCase().includes("schema cache")
+        strengthRes.error.message.includes("user_strength_sessions") ||
+          strengthRes.error.code === "42P01" ||
+          strengthRes.error.message.toLowerCase().includes("schema cache")
           ? "Falta crear la tabla en Supabase. Ejecuta supabase/schema-strength.sql"
-          : qError.message,
+          : strengthRes.error.message,
       );
       setDays([]);
       setLoading(false);
       return;
     }
 
+    // Cardio opcional: si falta la tabla, seguimos solo con fuerza
+    if (
+      cardioRes.error &&
+      !cardioRes.error.message.includes("user_cardio_workouts") &&
+      cardioRes.error.code !== "42P01" &&
+      !cardioRes.error.message.toLowerCase().includes("schema cache")
+    ) {
+      setError(cardioRes.error.message);
+      setDays([]);
+      setLoading(false);
+      return;
+    }
+
     const byDate = new Map<string, Map<string, number>>();
-    for (const row of data ?? []) {
+
+    for (const row of strengthRes.data ?? []) {
       const day = (row.performed_at as string)?.slice(0, 10);
       const category = row.category as string;
       if (!day || !category) continue;
-      if (!byDate.has(day)) byDate.set(day, new Map());
-      const cats = byDate.get(day)!;
-      cats.set(category, (cats.get(category) ?? 0) + 1);
+      addCategoryCount(byDate, day, category);
+    }
+
+    for (const row of cardioRes.data ?? []) {
+      const day = (row.performed_at as string)?.slice(0, 10);
+      if (!day) continue;
+      addCategoryCount(byDate, day, "cardio");
     }
 
     const list: HistoryDay[] = [...byDate.entries()]
@@ -139,15 +174,16 @@ export function SportHistoryView({
               Sin entrenos todavía
             </p>
             <p className="mt-1 max-w-sm text-sm text-[var(--muted)]">
-              Cuando registres series en pecho, espalda u otros grupos,
-              aparecerán aquí por día.
+              Cuando registres cardio o series de fuerza, aparecerán aquí por
+              día.
             </p>
           </div>
         ) : (
           <ul className="space-y-2 animate-slide-up">
             {days.map((day) => {
-              const label =
+              const whenLabel =
                 formatLastPerformedLabel(day.date) ?? day.date;
+              const groupsLabel = day.categories.map((c) => c.title).join(" · ");
               return (
                 <li key={day.date}>
                   <Link
@@ -155,26 +191,22 @@ export function SportHistoryView({
                     className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3.5 transition-all hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-md hover:shadow-emerald-500/10"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                        <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
-                          {label}
-                        </p>
-                        <p className="text-sm text-[var(--muted)]">
-                          {day.date}
-                        </p>
-                      </div>
+                      <p className="font-[family-name:var(--font-display)] text-lg font-semibold tracking-tight">
+                        {groupsLabel}
+                      </p>
                       <p className="mt-1 text-sm text-[var(--muted)]">
-                        {day.categories.map((c, i) => (
-                          <span key={c.category}>
-                            {i > 0 ? " · " : null}
-                            <span className="font-medium text-[var(--foreground)]">
-                              {c.title}
-                            </span>
-                            {" "}
-                            {c.count}{" "}
-                            {c.count === 1 ? "ejercicio" : "ejercicios"}
-                          </span>
-                        ))}
+                        <span className="font-medium text-[var(--foreground)]">
+                          {whenLabel}
+                        </span>
+                        {whenLabel !== day.date ? (
+                          <>
+                            {" · "}
+                            {day.date}
+                          </>
+                        ) : null}
+                        {" · "}
+                        {day.totalExercises}{" "}
+                        {day.totalExercises === 1 ? "registro" : "registros"}
                       </p>
                     </div>
                     <ChevronRight className="h-5 w-5 shrink-0 text-[var(--muted)]" />

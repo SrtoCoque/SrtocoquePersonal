@@ -42,18 +42,6 @@ const SECTIONS = [
     iconBg: "bg-indigo-400/25 text-indigo-50",
   },
   {
-    href: "#",
-    title: "Series",
-    description: "Próximamente",
-    icon: Tv,
-    available: false,
-    image: "/home/series.jpg",
-    tint: "from-amber-950/90 via-amber-800/55 to-orange-700/35",
-    border: "border-amber-500/30",
-    shadow: "",
-    iconBg: "bg-amber-400/25 text-amber-50",
-  },
-  {
     href: "/movies",
     title: "Películas",
     description: "Wishlist y vistas",
@@ -76,6 +64,18 @@ const SECTIONS = [
     border: "border-emerald-500/35 hover:border-emerald-300/60",
     shadow: "hover:shadow-emerald-900/30",
     iconBg: "bg-emerald-400/25 text-emerald-50",
+  },
+  {
+    href: "#",
+    title: "Series",
+    description: "Próximamente",
+    icon: Tv,
+    available: false,
+    image: "/home/series.jpg",
+    tint: "from-amber-950/90 via-amber-800/55 to-orange-700/35",
+    border: "border-amber-500/30",
+    shadow: "",
+    iconBg: "bg-amber-400/25 text-amber-50",
   },
 ] as const;
 
@@ -118,25 +118,46 @@ export function HomeHub({ email }: { email: string | null }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
-        <div className="mb-10 animate-fade-in">
-          <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight sm:text-4xl">
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-14">
+        <div className="mb-6 animate-fade-in sm:mb-10">
+          <h1 className="font-[family-name:var(--font-display)] text-2xl font-semibold tracking-tight sm:text-4xl">
             ¿Qué quieres explorar?
           </h1>
-          <p className="mt-2 text-[var(--muted)]">
+          <p className="mt-1.5 text-sm text-[var(--muted)] sm:mt-2 sm:text-base">
             Elige una sección de tu biblioteca personal
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 animate-slide-up">
-          {SECTIONS.map((section) => {
+        {/* Móvil: mosaico 2 columnas · Desktop: tarjetas anchas */}
+        <div
+          className={cn(
+            "grid animate-slide-up gap-2.5",
+            "grid-cols-2",
+            "sm:grid-cols-2 sm:gap-4",
+          )}
+        >
+          {SECTIONS.map((section, index) => {
             const Icon = section.icon;
+            const isSeries = !section.available;
+            // Series ocupa ancho completo al final en móvil
+            const spanFull = isSeries;
+
             const cardClass = cn(
-              "group relative flex min-h-[8.5rem] flex-col justify-end overflow-hidden rounded-2xl border p-4 text-left transition-all sm:min-h-[9.5rem] sm:p-5",
+              "group relative overflow-hidden border text-left transition-all",
+              "rounded-2xl",
               section.border,
+              // Móvil: tiles cuadrados / Series a lo ancho
+              spanFull
+                ? "col-span-2 aspect-[2.4/1] sm:col-span-1 sm:aspect-auto sm:min-h-[9.5rem]"
+                : "aspect-square sm:aspect-auto sm:min-h-[9.5rem]",
+              "flex flex-col justify-end p-3 sm:p-5",
               section.available
-                ? cn("hover:-translate-y-1 hover:shadow-lg", section.shadow)
+                ? cn(
+                    "active:scale-[0.98] sm:hover:-translate-y-1 sm:hover:shadow-lg",
+                    section.shadow,
+                  )
                 : "cursor-not-allowed opacity-70",
+              // Stagger sutil vía delay en CSS inline
             );
 
             const content = (
@@ -151,8 +172,8 @@ export function HomeHub({ email }: { email: string | null }) {
                       "group-hover:scale-[1.04] group-hover:brightness-[0.48] group-hover:saturate-[0.45]",
                     !section.available && "grayscale-[40%] brightness-[0.42]",
                   )}
-                  sizes="(max-width:640px) 100vw, 50vw"
-                  priority
+                  sizes="(max-width:640px) 50vw, 50vw"
+                  priority={index < 4}
                 />
                 <div
                   aria-hidden
@@ -164,20 +185,20 @@ export function HomeHub({ email }: { email: string | null }) {
                 <div className="relative z-10">
                   <div
                     className={cn(
-                      "mb-2 flex h-9 w-9 items-center justify-center rounded-lg backdrop-blur-sm",
+                      "mb-1.5 flex h-8 w-8 items-center justify-center rounded-lg backdrop-blur-sm sm:mb-2 sm:h-9 sm:w-9",
                       section.iconBg,
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   </div>
-                  <h2 className="font-[family-name:var(--font-display)] text-lg font-semibold text-white drop-shadow-sm sm:text-xl">
+                  <h2 className="font-[family-name:var(--font-display)] text-base font-semibold text-white drop-shadow-sm sm:text-xl">
                     {section.title}
                   </h2>
-                  <p className="mt-0.5 text-sm text-white/85">
+                  <p className="mt-0.5 hidden text-sm text-white/85 sm:block">
                     {section.description}
                   </p>
                   {!section.available && (
-                    <span className="mt-2 inline-flex w-fit rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm">
+                    <span className="mt-1.5 inline-flex w-fit rounded-md bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm sm:mt-2 sm:text-xs">
                       Próximamente
                     </span>
                   )}
@@ -187,14 +208,23 @@ export function HomeHub({ email }: { email: string | null }) {
 
             if (!section.available) {
               return (
-                <div key={section.title} className={cardClass}>
+                <div
+                  key={section.title}
+                  className={cardClass}
+                  style={{ animationDelay: `${index * 40}ms` }}
+                >
                   {content}
                 </div>
               );
             }
 
             return (
-              <Link key={section.title} href={section.href} className={cardClass}>
+              <Link
+                key={section.title}
+                href={section.href}
+                className={cardClass}
+                style={{ animationDelay: `${index * 40}ms` }}
+              >
                 {content}
               </Link>
             );

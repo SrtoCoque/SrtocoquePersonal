@@ -100,12 +100,23 @@ function useKeyboardViewport(open: boolean) {
   return frame;
 }
 
+const KBD_ACCESSORY_PX = 48;
+
+function isDialogTextField(el: EventTarget | null): el is HTMLElement {
+  if (!(el instanceof HTMLElement)) return false;
+  return /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+}
+
 export function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   const viewport = useKeyboardViewport(open);
   const panelRef = React.useRef<HTMLDivElement>(null);
+  const [fieldFocused, setFieldFocused] = React.useState(false);
 
   React.useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setFieldFocused(false);
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeSafely(() => onOpenChange(false));
     };
@@ -118,28 +129,55 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
     };
   }, [open, onOpenChange]);
 
-  // Al enfocar un input, asegurar que queda visible sobre el teclado.
+  // Reserva hueco para la barra de flechas y deja el campo visible.
   React.useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
     if (!panel) return;
 
+    let blurTimer: number | null = null;
+
     const onFocusIn = (e: FocusEvent) => {
-      const target = e.target;
-      if (!(target instanceof HTMLElement)) return;
-      if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      window.setTimeout(() => {
-        target.scrollIntoView({ block: "center", behavior: "smooth" });
-      }, 100);
+      if (!isDialogTextField(e.target)) return;
+      if (blurTimer != null) {
+        window.clearTimeout(blurTimer);
+        blurTimer = null;
+      }
+      setFieldFocused(true);
+    };
+
+    const onFocusOut = () => {
+      blurTimer = window.setTimeout(() => {
+        if (
+          document.activeElement &&
+          panel.contains(document.activeElement) &&
+          isDialogTextField(document.activeElement)
+        ) {
+          return;
+        }
+        setFieldFocused(false);
+      }, 120);
     };
 
     panel.addEventListener("focusin", onFocusIn);
-    return () => panel.removeEventListener("focusin", onFocusIn);
+    panel.addEventListener("focusout", onFocusOut);
+    return () => {
+      if (blurTimer != null) window.clearTimeout(blurTimer);
+      panel.removeEventListener("focusin", onFocusIn);
+      panel.removeEventListener("focusout", onFocusOut);
+    };
   }, [open]);
 
   if (!open) return null;
 
   const hasViewport = viewport.height > 0;
+  const accessory =
+    fieldFocused && typeof window !== "undefined" && window.innerWidth < 640
+      ? KBD_ACCESSORY_PX
+      : 0;
+  const frameHeight = hasViewport
+    ? Math.max(160, Math.round(viewport.height - accessory))
+    : 0;
 
   return (
     <div
@@ -148,7 +186,7 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
         hasViewport
           ? {
               top: viewport.offsetTop,
-              height: viewport.height,
+              height: frameHeight,
               alignItems: undefined,
             }
           : { inset: 0 }
@@ -179,7 +217,7 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
           )}
           style={
             hasViewport
-              ? { maxHeight: `min(100%, ${Math.round(viewport.height)}px)` }
+              ? { maxHeight: `${frameHeight}px` }
               : undefined
           }
           onPointerDown={(e) => e.stopPropagation()}
@@ -261,6 +299,7 @@ export function DialogBody({
 }) {
   return (
     <div
+      data-dialog-body
       className={cn(
         "min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5 sm:py-4",
         className,

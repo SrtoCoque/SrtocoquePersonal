@@ -13,27 +13,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
-import type { CardioActivitySlug } from "@/lib/sport";
+import type { CardioActivitySlug, UserCardioWorkout } from "@/lib/sport";
 import {
   durationFromParts,
   formatPaceMinPerKm,
   getCardioActivity,
 } from "@/lib/sport";
 
+function splitDuration(totalSeconds: number) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  return {
+    hours: String(Math.floor(s / 3600) || ""),
+    minutes: String(Math.floor((s % 3600) / 60) || ""),
+    seconds: String(s % 60 || ""),
+  };
+}
+
 export function AddCardioWorkoutDialog({
   open,
   onOpenChange,
   userId,
   activity,
+  existingWorkout = null,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
   activity: CardioActivitySlug;
-  onSaved: () => void;
+  existingWorkout?: UserCardioWorkout | null;
+  onSaved: (result?: { performed_at: string }) => void;
 }) {
   const meta = getCardioActivity(activity);
+  const editing = !!existingWorkout;
   const [distance, setDistance] = useState("");
   const [hours, setHours] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -45,15 +57,25 @@ export function AddCardioWorkoutDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDistance("");
-    setHours("");
-    setMinutes("");
-    setSeconds("");
-    setDate(new Date().toISOString().slice(0, 10));
-    setNotes("");
+    if (existingWorkout) {
+      setDistance(String(existingWorkout.distance_km));
+      const parts = splitDuration(existingWorkout.duration_seconds);
+      setHours(parts.hours);
+      setMinutes(parts.minutes);
+      setSeconds(parts.seconds);
+      setDate(existingWorkout.performed_at.slice(0, 10));
+      setNotes(existingWorkout.notes ?? "");
+    } else {
+      setDistance("");
+      setHours("");
+      setMinutes("");
+      setSeconds("");
+      setDate(new Date().toISOString().slice(0, 10));
+      setNotes("");
+    }
     setError(null);
     setSaving(false);
-  }, [open, activity]);
+  }, [open, activity, existingWorkout]);
 
   const distanceKm = Number(distance.replace(",", "."));
   const durationSeconds = durationFromParts(
@@ -83,34 +105,44 @@ export function AddCardioWorkoutDialog({
     setSaving(true);
     setError(null);
     const supabase = createClient();
-    const { error: insertError } = await supabase
-      .from("user_cardio_workouts")
-      .insert({
-        user_id: userId,
-        activity,
-        distance_km: distanceKm,
-        duration_seconds: durationSeconds,
-        performed_at: date,
-        notes: notes.trim() || null,
-      });
+    const payload = {
+      distance_km: distanceKm,
+      duration_seconds: durationSeconds,
+      performed_at: date,
+      notes: notes.trim() || null,
+    };
+
+    const { error: saveError } = existingWorkout
+      ? await supabase
+          .from("user_cardio_workouts")
+          .update(payload)
+          .eq("id", existingWorkout.id)
+          .eq("user_id", userId)
+      : await supabase.from("user_cardio_workouts").insert({
+          user_id: userId,
+          activity,
+          ...payload,
+        });
 
     setSaving(false);
-    if (insertError) {
+    if (saveError) {
       setError(
-        insertError.message.includes("user_cardio_workouts")
+        saveError.message.includes("user_cardio_workouts")
           ? "Falta crear la tabla en Supabase. Ejecuta supabase/schema-sport.sql"
-          : insertError.message,
+          : saveError.message,
       );
       return;
     }
     onOpenChange(false);
-    onSaved();
+    onSaved({ performed_at: date });
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader onClose={() => onOpenChange(false)}>
-        <DialogTitle>Añadir · {meta?.title ?? "Cardio"}</DialogTitle>
+        <DialogTitle>
+          {editing ? "Editar" : "Añadir"} · {meta?.title ?? "Cardio"}
+        </DialogTitle>
       </DialogHeader>
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
         <DialogBody className="space-y-4">

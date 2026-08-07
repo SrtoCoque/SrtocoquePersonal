@@ -6,6 +6,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogBody,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -181,6 +182,7 @@ export function EditBookDialog({
       </DialogHeader>
       <DialogBody className="space-y-4">
         <form
+          id="edit-book-form"
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
@@ -356,17 +358,19 @@ export function EditBookDialog({
               {error}
             </p>
           )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={saving || deleting}
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Guardar cambios
-          </Button>
         </form>
       </DialogBody>
+      <DialogFooter>
+        <Button
+          type="submit"
+          form="edit-book-form"
+          className="w-full"
+          disabled={saving || deleting}
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          Guardar cambios
+        </Button>
+      </DialogFooter>
     </Dialog>
   );
 }

@@ -557,8 +557,9 @@ export function resolveStrengthExerciseTitle(
   return slug;
 }
 
-/** Orden de grupos de fuerza para resúmenes del historial. */
+/** Orden de grupos para resúmenes del historial (incluye cardio). */
 export const STRENGTH_CATEGORY_ORDER = [
+  "cardio",
   "pecho",
   "espalda",
   "hombros",

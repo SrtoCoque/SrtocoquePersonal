@@ -62,45 +62,69 @@ function collectFields(from: HTMLElement): HTMLElement[] {
   );
 }
 
-function scrollFieldIntoView(el: HTMLElement) {
-  el.scrollIntoView({
-    block: "center",
-    inline: "nearest",
-    behavior: "smooth",
-  });
+const KBD_ACCESSORY_H = 48;
 
-  const vv = window.visualViewport;
-  if (!vv) return;
-
-  const rect = el.getBoundingClientRect();
-  // Dejar hueco para la barra de flechas (~48px)
-  const visibleTop = vv.offsetTop + 12;
-  const visibleBottom = vv.offsetTop + vv.height - 56;
-
-  if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
-
-  const delta =
-    rect.bottom > visibleBottom
-      ? rect.bottom - visibleBottom + 24
-      : rect.top - visibleTop - 24;
+function findScrollParent(el: HTMLElement): HTMLElement | null {
+  const dialogBody = el.closest("[data-dialog-body]");
+  if (dialogBody instanceof HTMLElement) return dialogBody;
 
   let node: HTMLElement | null = el.parentElement;
   while (node && node !== document.body) {
     const style = window.getComputedStyle(node);
-    const canScroll =
-      (style.overflowY === "auto" ||
-        style.overflowY === "scroll" ||
-        style.overflow === "auto" ||
-        style.overflow === "scroll") &&
-      node.scrollHeight > node.clientHeight + 1;
-    if (canScroll) {
-      node.scrollBy({ top: delta, behavior: "smooth" });
-      return;
+    const oy = style.overflowY;
+    if (
+      (oy === "auto" || oy === "scroll" || style.overflow === "auto" || style.overflow === "scroll") &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return node;
     }
     node = node.parentElement;
   }
+  return null;
+}
 
-  window.scrollBy({ top: delta, behavior: "smooth" });
+/** Coloca el campo en la zona visible (sobre teclado + barra de flechas). */
+function scrollFieldIntoView(el: HTMLElement) {
+  const vv = window.visualViewport;
+  const scrollParent = findScrollParent(el);
+
+  const vvTop = vv?.offsetTop ?? 0;
+  const vvBottom = vvTop + (vv?.height ?? window.innerHeight);
+  // Barra de flechas encima del teclado
+  const safeBottom = vvBottom - KBD_ACCESSORY_H - 12;
+  const safeTop = vvTop + 12;
+
+  const place = () => {
+    const rect = el.getBoundingClientRect();
+    const parentRect = scrollParent?.getBoundingClientRect();
+
+    const visibleTop = parentRect
+      ? Math.max(safeTop, parentRect.top + 8)
+      : safeTop;
+    const visibleBottom = parentRect
+      ? Math.min(safeBottom, parentRect.bottom - 8)
+      : safeBottom;
+
+    if (visibleBottom <= visibleTop + 24) return;
+
+    // Preferir el tercio superior del área visible (más cómodo al teclear)
+    const targetY = visibleTop + (visibleBottom - visibleTop) * 0.28;
+    const elMid = rect.top + rect.height / 2;
+    const delta = elMid - targetY;
+
+    if (Math.abs(delta) < 6) return;
+
+    if (scrollParent) {
+      scrollParent.scrollTop += delta;
+      return;
+    }
+    window.scrollBy(0, delta);
+  };
+
+  // Instantáneo primero (iOS a veces ignora smooth dentro de modales)
+  place();
+  // Tras animar el teclado / reflow del modal
+  requestAnimationFrame(place);
 }
 
 function useIsMobileUi(): boolean {
@@ -151,7 +175,7 @@ export function KeyboardFocusGuard() {
   }, []);
 
   const scheduleKeepVisible = useCallback((el: HTMLElement) => {
-    for (const delay of [50, 150, 300, 450]) {
+    for (const delay of [50, 120, 250, 400, 600]) {
       window.setTimeout(() => {
         if (document.activeElement === el) scrollFieldIntoView(el);
       }, delay);
