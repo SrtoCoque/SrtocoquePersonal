@@ -28,8 +28,20 @@ export function InlineHeaderSearch({
       setSubmitting(false);
       return;
     }
-    const id = window.setTimeout(() => inputRef.current?.focus(), 10);
-    return () => window.clearTimeout(id);
+    const input = inputRef.current;
+    if (!input) return;
+
+    // preventScroll evita que el navegador mueva la página al enfocar
+    const focusNow = () => {
+      input.focus({ preventScroll: true });
+    };
+    focusNow();
+    const t1 = window.setTimeout(focusNow, 50);
+    const t2 = window.setTimeout(focusNow, 200);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -53,7 +65,10 @@ export function InlineHeaderSearch({
   if (!open) return null;
 
   return (
-    <div className="border-t border-[var(--border)] bg-[var(--background)]/95 animate-fade-in">
+    <div
+      data-skip-keyboard-scroll
+      className="border-t border-[var(--border)] bg-[var(--background)]/95 animate-fade-in"
+    >
       <form
         onSubmit={submit}
         className="mx-auto flex w-full min-w-0 max-w-6xl items-center gap-2 px-4 py-3 sm:px-6"
@@ -67,6 +82,8 @@ export function InlineHeaderSearch({
             placeholder={placeholder}
             className="pl-9 pr-9"
             autoComplete="off"
+            enterKeyHint="search"
+            data-skip-keyboard-scroll="true"
           />
           {query && (
             <button
@@ -75,7 +92,7 @@ export function InlineHeaderSearch({
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted)] hover:text-[var(--foreground)]"
               onClick={() => {
                 setQuery("");
-                inputRef.current?.focus();
+                inputRef.current?.focus({ preventScroll: true });
               }}
             >
               <X className="h-4 w-4" />

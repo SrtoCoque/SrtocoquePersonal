@@ -73,7 +73,10 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
     const style = window.getComputedStyle(node);
     const oy = style.overflowY;
     if (
-      (oy === "auto" || oy === "scroll" || style.overflow === "auto" || style.overflow === "scroll") &&
+      (oy === "auto" ||
+        oy === "scroll" ||
+        style.overflow === "auto" ||
+        style.overflow === "scroll") &&
       node.scrollHeight > node.clientHeight + 1
     ) {
       return node;
@@ -83,47 +86,63 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** Coloca el campo en la zona visible (sobre teclado + barra de flechas). */
+/**
+ * Solo mueve el scroll si el campo queda tapado por el teclado.
+ * No recentra campos ya visibles (evita el “petardeo” en el buscador del header).
+ */
 function scrollFieldIntoView(el: HTMLElement) {
+  if (el.dataset.skipKeyboardScroll === "true") return;
+  if (el.closest("[data-skip-keyboard-scroll]")) return;
+
   const vv = window.visualViewport;
   const scrollParent = findScrollParent(el);
 
   const vvTop = vv?.offsetTop ?? 0;
   const vvBottom = vvTop + (vv?.height ?? window.innerHeight);
-  // Barra de flechas encima del teclado
   const safeBottom = vvBottom - KBD_ACCESSORY_H - 12;
-  const safeTop = vvTop + 12;
+  const safeTop = vvTop + 8;
 
   const place = () => {
+    if (document.activeElement !== el) return;
+
     const rect = el.getBoundingClientRect();
-    const parentRect = scrollParent?.getBoundingClientRect();
+    const parentRect = scrollParent?.getBoundingClientRect() ?? null;
 
     const visibleTop = parentRect
-      ? Math.max(safeTop, parentRect.top + 8)
+      ? Math.max(safeTop, parentRect.top + 4)
       : safeTop;
     const visibleBottom = parentRect
-      ? Math.min(safeBottom, parentRect.bottom - 8)
+      ? Math.min(safeBottom, parentRect.bottom - 4)
       : safeBottom;
+
+    // Ya cabe entero en la zona útil → no tocar el scroll
+    if (rect.top >= visibleTop - 1 && rect.bottom <= visibleBottom + 1) {
+      return;
+    }
 
     if (visibleBottom <= visibleTop + 24) return;
 
-    // Preferir el tercio superior del área visible (más cómodo al teclear)
-    const targetY = visibleTop + (visibleBottom - visibleTop) * 0.28;
-    const elMid = rect.top + rect.height / 2;
-    const delta = elMid - targetY;
+    let delta = 0;
+    if (rect.bottom > visibleBottom) {
+      delta = rect.bottom - visibleBottom + 16;
+    } else if (rect.top < visibleTop) {
+      delta = rect.top - visibleTop - 16;
+    } else {
+      return;
+    }
 
-    if (Math.abs(delta) < 6) return;
+    if (Math.abs(delta) < 4) return;
 
     if (scrollParent) {
       scrollParent.scrollTop += delta;
       return;
     }
+    // Evitar window.scrollBy con inputs del header sticky: provoca oscilación
+    if (el.closest("header")) return;
     window.scrollBy(0, delta);
   };
 
-  // Instantáneo primero (iOS a veces ignora smooth dentro de modales)
   place();
-  // Tras animar el teclado / reflow del modal
   requestAnimationFrame(place);
 }
 
@@ -198,7 +217,12 @@ export function KeyboardFocusGuard() {
       setFocused(active);
       refreshNav(active);
       syncBarPosition();
-      scheduleKeepVisible(active);
+      const skipScroll =
+        active.dataset.skipKeyboardScroll === "true" ||
+        !!active.closest("[data-skip-keyboard-scroll]");
+      if (!skipScroll) {
+        scheduleKeepVisible(active);
+      }
     };
 
     const onFocusOut = () => {
@@ -218,9 +242,15 @@ export function KeyboardFocusGuard() {
 
     const onViewportChange = () => {
       syncBarPosition();
+      // Solo reajustar si el campo queda tapado; no en cada scroll del visualViewport
       if (active && document.activeElement === active) {
-        refreshNav(active);
-        scheduleKeepVisible(active);
+        const rect = active.getBoundingClientRect();
+        const vv = window.visualViewport;
+        const bottom =
+          (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight) - KBD_ACCESSORY_H;
+        if (rect.bottom > bottom + 2 || rect.top < (vv?.offsetTop ?? 0) - 2) {
+          scrollFieldIntoView(active);
+        }
       }
     };
 
