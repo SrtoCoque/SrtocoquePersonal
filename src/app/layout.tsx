@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cinzel, Literata, Plus_Jakarta_Sans } from "next/font/google";
+import { KeyboardFocusGuard } from "@/components/keyboard-focus-guard";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -30,6 +31,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
+  // En Android/Chrome el layout se reajusta al teclado virtual
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
@@ -42,7 +45,10 @@ export default function RootLayout({
       <body
         className={`${sans.variable} ${display.variable} ${wizard.variable} min-h-full overflow-x-clip antialiased`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <KeyboardFocusGuard />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

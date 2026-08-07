@@ -167,6 +167,7 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
         />
         <div
           ref={panelRef}
+          data-dialog-panel
           className={cn(
             "relative z-10 flex w-full flex-col overflow-hidden",
             "max-h-full sm:max-h-[min(90vh,100%)] sm:max-w-lg",
