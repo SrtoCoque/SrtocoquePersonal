@@ -4,6 +4,16 @@ import Image from "next/image";
 import { Bookmark, Check, Gamepad2, Star } from "lucide-react";
 import type { GameStatus, UserGame } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  GAME_STOREFRONT_LABELS,
+  GameStorefrontIcon,
+  normalizeStorefronts,
+} from "@/components/games/game-storefront";
+import { MetacriticBadge } from "@/components/games/metacritic-badge";
+import {
+  normalizeGamePrices,
+  sumGamePrices,
+} from "@/lib/game-prices";
 
 const STATUS_BAR: Record<
   GameStatus,
@@ -24,10 +34,20 @@ const STATUS_BAR: Record<
     bar: "bg-sky-500 text-white",
     Icon: Gamepad2,
   },
+  replaying: {
+    label: "Lo estás rejugando",
+    bar: "bg-orange-500 text-white",
+    Icon: Gamepad2,
+  },
   completed: {
     label: "Ya lo has completado",
     bar: "bg-emerald-600 text-white",
     Icon: Check,
+  },
+  dropped: {
+    label: "Sin terminar",
+    bar: "bg-zinc-500 text-white",
+    Icon: Gamepad2,
   },
 };
 
@@ -40,6 +60,15 @@ export function GameCard({
 }) {
   const statusMeta = STATUS_BAR[game.status];
   const StatusIcon = statusMeta.Icon;
+  const storefronts = normalizeStorefronts(game.storefronts);
+  const totalPaid = sumGamePrices(normalizeGamePrices(game.prices));
+  const hours = Number(game.hours_played) || 0;
+  const showHours =
+    (game.status === "playing" ||
+      game.status === "replaying" ||
+      game.status === "completed" ||
+      game.status === "dropped") &&
+    hours > 0;
 
   return (
     <button
@@ -62,6 +91,25 @@ export function GameCard({
             <Gamepad2 className="h-8 w-8 opacity-40" />
           </div>
         )}
+        {storefronts.length > 0 ? (
+          <span className="absolute left-2 top-2 flex items-center gap-1 rounded-lg bg-black/65 px-1.5 py-1 text-white backdrop-blur-sm">
+            {storefronts.map((sf) => (
+              <span
+                key={sf}
+                title={GAME_STOREFRONT_LABELS[sf]}
+                className="flex h-6 w-6 items-center justify-center"
+              >
+                <GameStorefrontIcon storefront={sf} className="h-3.5 w-3.5" />
+              </span>
+            ))}
+          </span>
+        ) : null}
+        {game.metacritic != null ? (
+          <MetacriticBadge
+            score={game.metacritic}
+            className="absolute right-2 top-2"
+          />
+        ) : null}
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 px-2 py-1.5 text-center text-[11px] font-semibold leading-tight shadow-md sm:text-xs",
@@ -77,21 +125,46 @@ export function GameCard({
         <h3 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
           {game.title}
         </h3>
-        <p className="line-clamp-1 text-xs text-[var(--muted)]">
-          {game.platforms.slice(0, 2).join(", ") || "Sin plataformas"}
-        </p>
-
-        {game.status === "playing" && Number(game.hours_played) > 0 && (
-          <p className="mt-auto text-[10px] text-[var(--muted)]">
-            {Number(game.hours_played)} h jugadas
+        {storefronts.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 text-[var(--muted)]">
+            {storefronts.map((sf) => (
+              <span
+                key={sf}
+                title={GAME_STOREFRONT_LABELS[sf]}
+                className="inline-flex"
+              >
+                <GameStorefrontIcon storefront={sf} className="h-4 w-4" />
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="line-clamp-1 text-xs text-[var(--muted)]">
+            {game.platforms.slice(0, 2).join(", ") || "Sin plataformas"}
           </p>
         )}
 
-        {game.rating ? (
-          <div className="mt-auto flex items-center gap-0.5 pt-1 text-amber-500">
-            {Array.from({ length: game.rating }).map((_, i) => (
-              <Star key={i} className="h-3 w-3 fill-current" />
-            ))}
+        {totalPaid > 0 || showHours || game.rating ? (
+          <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
+            {game.rating ? (
+              <div className="flex items-center gap-0.5 text-amber-500">
+                {Array.from({ length: game.rating }).map((_, i) => (
+                  <Star key={i} className="h-3 w-3 fill-current" />
+                ))}
+              </div>
+            ) : null}
+            {totalPaid > 0 ? (
+              <span className="text-[10px] text-[var(--muted)]">
+                {totalPaid.toLocaleString("es-ES", {
+                  style: "currency",
+                  currency: "EUR",
+                })}
+              </span>
+            ) : null}
+            {showHours ? (
+              <span className="text-[10px] text-[var(--muted)]">
+                {hours} Horas
+              </span>
+            ) : null}
           </div>
         ) : null}
       </div>

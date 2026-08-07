@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -15,8 +14,16 @@ import {
   gameDestinationToStatus,
   type GameDestination,
 } from "@/components/games/game-destination-fields";
+import { GameSearchPreview } from "@/components/games/game-search-preview";
+import type { GameStorefront } from "@/components/games/game-storefront";
 import { createClient } from "@/lib/supabase/client";
 import type { GameShelfStatus, RawgGameResult } from "@/lib/types";
+import {
+  pricesDraftToDb,
+  type GamePricesDraft,
+} from "@/lib/game-prices";
+import { cn } from "@/lib/utils";
+import { submitFormOnEnter } from "@/lib/submit-form-on-enter";
 
 type Props = {
   game: RawgGameResult | null;
@@ -35,6 +42,12 @@ export function SaveGameDialog({
 }: Props) {
   const [destination, setDestination] = useState<GameDestination | null>(null);
   const [shelfStatus, setShelfStatus] = useState<GameShelfStatus>("owned");
+  const [storefronts, setStorefronts] = useState<GameStorefront[]>([]);
+  const [prices, setPrices] = useState<GamePricesDraft>({});
+  const [hoursPlayed, setHoursPlayed] = useState<number | "">("");
+  const [startDate, setStartDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
   const [finishDate, setFinishDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
@@ -46,6 +59,10 @@ export function SaveGameDialog({
     if (!open) return;
     setDestination(null);
     setShelfStatus("owned");
+    setStorefronts([]);
+    setPrices({});
+    setHoursPlayed("");
+    setStartDate(new Date().toISOString().slice(0, 10));
     setFinishDate(new Date().toISOString().slice(0, 10));
     setError(null);
     setDone(false);
@@ -53,6 +70,10 @@ export function SaveGameDialog({
 
   async function handleSave() {
     if (!game || !destination) return;
+    if (destination === "shelf" && storefronts.length === 0) {
+      setError("Elige al menos una tienda (Steam, PlayStation…)");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -65,17 +86,33 @@ export function SaveGameDialog({
       developers: game.developers,
       cover_url: game.coverUrl,
       platforms: game.platforms,
+      storefronts: destination === "shelf" ? storefronts : [],
       released: game.released,
       metacritic: game.metacritic,
       status,
-      hours_played: 0,
+      hours_played:
+        status === "playing" || status === "completed"
+          ? Number(hoursPlayed) || 0
+          : 0,
+      prices:
+        destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {},
       playtime_estimate: game.playtimeEstimate,
+      start_date:
+        status === "playing" || status === "completed" ? startDate : null,
       finish_date: status === "completed" ? finishDate : null,
     });
 
     setSaving(false);
     if (insertError) {
-      setError(insertError.message);
+      setError(
+        insertError.message.includes("storefront")
+          ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
+          : insertError.message.includes("prices")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-by-storefront.sql"
+            : insertError.message.includes("start_date")
+              ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-start-date.sql"
+              : insertError.message,
+      );
       return;
     }
 
@@ -86,12 +123,16 @@ export function SaveGameDialog({
 
   if (!game) return null;
 
-  const canSave = destination === "wishlist" || destination === "shelf";
+  const canSave =
+    destination === "wishlist" ||
+    (destination === "shelf" && storefronts.length > 0);
   const saveLabel =
     destination === "wishlist"
       ? "Añadir a Wishlist"
       : destination === "shelf"
-        ? "Añadir a la estantería"
+        ? storefronts.length > 0
+          ? "Añadir a la biblioteca"
+          : "Elige tienda(s)"
         : "Elige una opción";
 
   return (
@@ -102,67 +143,54 @@ export function SaveGameDialog({
       <DialogBody className="space-y-4">
         <form
           className="space-y-4"
+          onKeyDown={submitFormOnEnter}
           onSubmit={(e) => {
             e.preventDefault();
             void handleSave();
           }}
         >
-        <div className="flex gap-4">
-          <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] shadow-md">
-            {game.coverUrl ? (
-              <Image
-                src={game.coverUrl}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="80px"
-                unoptimized
-              />
-            ) : null}
-          </div>
-          <div className="min-w-0">
-            <p className="font-[family-name:var(--font-display)] text-lg font-semibold leading-snug">
-              {game.title}
+          <GameSearchPreview game={game} />
+
+          <GameDestinationFields
+            destination={destination}
+            onDestinationChange={setDestination}
+            shelfStatus={shelfStatus}
+            onShelfStatusChange={setShelfStatus}
+            storefronts={storefronts}
+            onStorefrontsChange={setStorefronts}
+            prices={prices}
+            onPricesChange={setPrices}
+            hoursPlayed={hoursPlayed}
+            onHoursPlayedChange={setHoursPlayed}
+            startDate={startDate}
+            onStartDateChange={setStartDate}
+            finishDate={finishDate}
+            onFinishDateChange={setFinishDate}
+          />
+
+          {error && (
+            <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+              {error}
             </p>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {game.platforms.slice(0, 3).join(", ") || "Plataformas desconocidas"}
+          )}
+          {done && (
+            <p className="rounded-lg bg-[var(--accent)]/12 px-3 py-2 text-sm text-[var(--accent)]">
+              Guardado correctamente
             </p>
-            {game.metacritic ? (
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                Metacritic {game.metacritic}
-              </p>
-            ) : null}
-          </div>
-        </div>
+          )}
 
-        <GameDestinationFields
-          destination={destination}
-          onDestinationChange={setDestination}
-          shelfStatus={shelfStatus}
-          onShelfStatusChange={setShelfStatus}
-          finishDate={finishDate}
-          onFinishDateChange={setFinishDate}
-        />
-
-        {error && (
-          <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
-            {error}
-          </p>
-        )}
-        {done && (
-          <p className="rounded-lg bg-[var(--accent)]/10 px-3 py-2 text-sm text-[var(--accent)]">
-            Guardado correctamente
-          </p>
-        )}
-
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={!canSave || saving || done}
-        >
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          {saveLabel}
-        </Button>
+          <Button
+            type="submit"
+            className={cn(
+              "w-full",
+              destination === "wishlist" &&
+                "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+            )}
+            disabled={!canSave || saving || done}
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {saveLabel}
+          </Button>
         </form>
       </DialogBody>
     </Dialog>

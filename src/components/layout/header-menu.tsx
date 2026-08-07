@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { LogOut, Menu, Moon, Sun, X, type LucideIcon } from "lucide-react";
@@ -27,20 +27,47 @@ export function HeaderMenu({
   const [mounted, setMounted] = useState(false);
   const panelId = useId();
   const { resolvedTheme, setTheme } = useTheme();
+  /** Si navegamos desde el menú, no restaurar el scroll anterior (rompe la página nueva en iOS). */
+  const skipScrollRestore = useRef(false);
+  const lockedScrollY = useRef(0);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+
+    lockedScrollY.current = window.scrollY;
+    skipScrollRestore.current = false;
+
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevPosition = body.style.position;
+    const prevTop = body.style.top;
+    const prevWidth = body.style.width;
+
+    // Bloqueo estable en iOS (overflow:hidden solo deja el scroll a medias)
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${lockedScrollY.current}px`;
+    body.style.width = "100%";
+
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
     window.addEventListener("keydown", onKey);
+
     return () => {
-      document.body.style.overflow = prev;
+      body.style.overflow = prevOverflow;
+      body.style.position = prevPosition;
+      body.style.top = prevTop;
+      body.style.width = prevWidth;
       window.removeEventListener("keydown", onKey);
+
+      if (skipScrollRestore.current) {
+        window.scrollTo(0, 0);
+      } else {
+        window.scrollTo(0, lockedScrollY.current);
+      }
     };
   }, [open]);
 
@@ -54,6 +81,13 @@ export function HeaderMenu({
   }, []);
 
   const isDark = mounted && resolvedTheme === "dark";
+
+  function goTo() {
+    skipScrollRestore.current = true;
+    setOpen(false);
+    // Refuerzo por si el cleanup corre después de montar la nueva ruta
+    window.setTimeout(() => window.scrollTo(0, 0), 0);
+  }
 
   const drawer =
     open && mounted
@@ -73,7 +107,7 @@ export function HeaderMenu({
                 "animate-slide-up",
               )}
             >
-              <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4">
+              <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 pt-[env(safe-area-inset-top)]">
                 <p className="font-[family-name:var(--font-display)] text-sm font-semibold tracking-tight">
                   Menú
                 </p>
@@ -95,7 +129,7 @@ export function HeaderMenu({
                     <Link
                       key={item.href + item.label}
                       href={item.href}
-                      onClick={() => setOpen(false)}
+                      onClick={() => goTo()}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition-colors",
                         item.active

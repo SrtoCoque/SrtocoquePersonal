@@ -3,6 +3,14 @@
 import { Gamepad2, Heart } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  GAME_STOREFRONT_LABELS,
+  GameStorefrontIcon,
+  GameStorefrontPicker,
+  type GameStorefront,
+} from "@/components/games/game-storefront";
+import type { GamePricesDraft } from "@/lib/game-prices";
+import { prunePricesDraft } from "@/lib/game-prices";
 import type { GameShelfStatus, GameStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -11,11 +19,10 @@ export type GameDestination = "wishlist" | "shelf";
 const SHELF_OPTIONS: {
   id: GameShelfStatus;
   label: string;
-  hint: string;
 }[] = [
-  { id: "owned", label: "Sin empezar", hint: "Lo tengo guardado" },
-  { id: "playing", label: "Jugando", hint: "Ahora mismo" },
-  { id: "completed", label: "Completado", hint: "Ya lo terminé" },
+  { id: "owned", label: "Sin empezar" },
+  { id: "playing", label: "Jugando" },
+  { id: "completed", label: "Completado" },
 ];
 
 type Props = {
@@ -23,6 +30,14 @@ type Props = {
   onDestinationChange: (destination: GameDestination) => void;
   shelfStatus: GameShelfStatus;
   onShelfStatusChange: (status: GameShelfStatus) => void;
+  storefronts: GameStorefront[];
+  onStorefrontsChange: (storefronts: GameStorefront[]) => void;
+  prices: GamePricesDraft;
+  onPricesChange: (prices: GamePricesDraft) => void;
+  hoursPlayed: number | "";
+  onHoursPlayedChange: (hours: number | "") => void;
+  startDate: string;
+  onStartDateChange: (date: string) => void;
   finishDate: string;
   onFinishDateChange: (date: string) => void;
 };
@@ -32,21 +47,38 @@ export function GameDestinationFields({
   onDestinationChange,
   shelfStatus,
   onShelfStatusChange,
+  storefronts,
+  onStorefrontsChange,
+  prices,
+  onPricesChange,
+  hoursPlayed,
+  onHoursPlayedChange,
+  startDate,
+  onStartDateChange,
   finishDate,
   onFinishDateChange,
 }: Props) {
+  function handleStorefrontsChange(next: GameStorefront[]) {
+    onStorefrontsChange(next);
+    onPricesChange(prunePricesDraft(prices, next));
+  }
+
+  function setPrice(sf: GameStorefront, value: number | "") {
+    onPricesChange({ ...prices, [sf]: value });
+  }
+
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="space-y-3">
         <Label>¿Dónde lo guardamos?</Label>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => onDestinationChange("wishlist")}
             className={cn(
-              "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
+              "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 transition-colors",
               destination === "wishlist"
-                ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                ? "border-amber-500 bg-amber-500/15"
                 : "border-[var(--border)] hover:bg-[var(--surface-2)]",
             )}
           >
@@ -54,13 +86,18 @@ export function GameDestinationFields({
               className={cn(
                 "h-4 w-4",
                 destination === "wishlist"
-                  ? "text-[var(--accent)]"
+                  ? "text-amber-600 dark:text-amber-300"
                   : "text-[var(--muted)]",
               )}
             />
-            <span className="text-sm font-medium">Wishlist</span>
-            <span className="text-[11px] leading-snug text-[var(--muted)]">
-              Lo quiero, pero aún no lo tengo
+            <span
+              className={cn(
+                "text-sm font-medium",
+                destination === "wishlist" &&
+                  "text-amber-700 dark:text-amber-300",
+              )}
+            >
+              Wishlist
             </span>
           </button>
 
@@ -71,7 +108,7 @@ export function GameDestinationFields({
               onShelfStatusChange("owned");
             }}
             className={cn(
-              "flex flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition-colors",
+              "flex items-center justify-center gap-2 rounded-xl border px-3 py-3 transition-colors",
               destination === "shelf"
                 ? "border-[var(--accent)] bg-[var(--accent)]/10"
                 : "border-[var(--border)] hover:bg-[var(--surface-2)]",
@@ -85,56 +122,127 @@ export function GameDestinationFields({
                   : "text-[var(--muted)]",
               )}
             />
-            <span className="text-sm font-medium">Estantería</span>
-            <span className="text-[11px] leading-snug text-[var(--muted)]">
-              Ya lo tengo
-            </span>
+            <span className="text-sm font-medium">Biblioteca</span>
           </button>
         </div>
       </div>
 
       {destination === "shelf" && (
         <div className="space-y-3 animate-fade-in">
-          <Label>Estado (opcional)</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {SHELF_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => onShelfStatusChange(opt.id)}
-                className={cn(
-                  "rounded-lg border px-2 py-2.5 text-left transition-colors",
-                  shelfStatus === opt.id
-                    ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                    : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-                )}
-              >
-                <span
+          <GameStorefrontPicker
+            value={storefronts}
+            onChange={handleStorefrontsChange}
+            required
+          />
+
+          {storefronts.length > 0 ? (
+            <div className="space-y-3">
+              <Label>Precio pagado (€)</Label>
+              <div className="space-y-2">
+                {storefronts.map((sf) => (
+                  <div key={sf} className="flex items-center gap-2">
+                    <span
+                      title={GAME_STOREFRONT_LABELS[sf]}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--foreground)]"
+                    >
+                      <GameStorefrontIcon storefront={sf} className="h-5 w-5" />
+                    </span>
+                    <Input
+                      id={`game-price-${sf}`}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.01}
+                      placeholder={GAME_STOREFRONT_LABELS[sf]}
+                      aria-label={`Precio en ${GAME_STOREFRONT_LABELS[sf]}`}
+                      value={prices[sf] ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setPrice(sf, "");
+                          return;
+                        }
+                        const n = Number(raw);
+                        if (!Number.isFinite(n) || n < 0) return;
+                        setPrice(sf, n);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-3">
+            <Label>Estado (opcional)</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {SHELF_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onShelfStatusChange(opt.id)}
                   className={cn(
-                    "block text-xs font-medium sm:text-sm",
-                    shelfStatus === opt.id ? "text-[var(--accent)]" : "",
+                    "rounded-lg border px-2 py-2.5 text-center text-xs font-medium transition-colors sm:text-sm",
+                    shelfStatus === opt.id
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
                   )}
                 >
                   {opt.label}
-                </span>
-                <span className="mt-0.5 hidden text-[10px] text-[var(--muted)] sm:block">
-                  {opt.hint}
-                </span>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {shelfStatus === "completed" && (
-            <div className="space-y-2 animate-fade-in">
-              <Label htmlFor="game-finish-date">Fecha de finalización</Label>
-              <Input
-                id="game-finish-date"
-                type="date"
-                value={finishDate}
-                onChange={(e) => onFinishDateChange(e.target.value)}
-              />
+          {shelfStatus === "playing" || shelfStatus === "completed" ? (
+            <div className="space-y-3 animate-fade-in">
+              <div className="space-y-2">
+                <Label htmlFor="game-hours-played">Horas jugadas</Label>
+                <Input
+                  id="game-hours-played"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step={0.5}
+                  placeholder="Ej. 12"
+                  value={hoursPlayed}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      onHoursPlayedChange("");
+                      return;
+                    }
+                    const n = Number(raw);
+                    if (!Number.isFinite(n) || n < 0) return;
+                    onHoursPlayedChange(n);
+                  }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="game-start-date">Fecha de inicio</Label>
+                <Input
+                  id="game-start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => onStartDateChange(e.target.value)}
+                />
+              </div>
+
+              {shelfStatus === "completed" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="game-finish-date">Fecha de finalización</Label>
+                  <Input
+                    id="game-finish-date"
+                    type="date"
+                    value={finishDate}
+                    min={startDate || undefined}
+                    onChange={(e) => onFinishDateChange(e.target.value)}
+                  />
+                </div>
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

@@ -17,8 +17,17 @@ import {
   gameDestinationToStatus,
   type GameDestination,
 } from "@/components/games/game-destination-fields";
+import { GameSearchPreview } from "@/components/games/game-search-preview";
 import { createClient } from "@/lib/supabase/client";
 import type { GameShelfStatus, RawgGameResult } from "@/lib/types";
+import type { GameStorefront } from "@/components/games/game-storefront";
+import { MetacriticBadge } from "@/components/games/metacritic-badge";
+import {
+  pricesDraftToDb,
+  type GamePricesDraft,
+} from "@/lib/game-prices";
+import { cn } from "@/lib/utils";
+import { submitFormOnEnter } from "@/lib/submit-form-on-enter";
 
 type Props = {
   open: boolean;
@@ -35,6 +44,12 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
   const [selected, setSelected] = useState<RawgGameResult | null>(null);
   const [destination, setDestination] = useState<GameDestination | null>(null);
   const [shelfStatus, setShelfStatus] = useState<GameShelfStatus>("owned");
+  const [storefronts, setStorefronts] = useState<GameStorefront[]>([]);
+  const [prices, setPrices] = useState<GamePricesDraft>({});
+  const [hoursPlayed, setHoursPlayed] = useState<number | "">("");
+  const [startDate, setStartDate] = useState(
+    () => new Date().toISOString().slice(0, 10),
+  );
   const [finishDate, setFinishDate] = useState(
     () => new Date().toISOString().slice(0, 10),
   );
@@ -47,6 +62,10 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
     setSelected(null);
     setDestination(null);
     setShelfStatus("owned");
+    setStorefronts([]);
+    setPrices({});
+    setHoursPlayed("");
+    setStartDate(new Date().toISOString().slice(0, 10));
     setFinishDate(new Date().toISOString().slice(0, 10));
     setError(null);
   }, []);
@@ -103,6 +122,10 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
 
   async function handleSave() {
     if (!selected || !destination) return;
+    if (destination === "shelf" && storefronts.length === 0) {
+      setError("Elige al menos una tienda (Steam, PlayStation…)");
+      return;
+    }
     setSaving(true);
     setError(null);
 
@@ -115,17 +138,33 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       developers: selected.developers,
       cover_url: selected.coverUrl,
       platforms: selected.platforms,
+      storefronts: destination === "shelf" ? storefronts : [],
       released: selected.released,
       metacritic: selected.metacritic,
       status,
-      hours_played: 0,
+      hours_played:
+        status === "playing" || status === "completed"
+          ? Number(hoursPlayed) || 0
+          : 0,
+      prices:
+        destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {},
       playtime_estimate: selected.playtimeEstimate,
+      start_date:
+        status === "playing" || status === "completed" ? startDate : null,
       finish_date: status === "completed" ? finishDate : null,
     });
 
     setSaving(false);
     if (insertError) {
-      setError(insertError.message);
+      setError(
+        insertError.message.includes("storefront")
+          ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
+          : insertError.message.includes("prices")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-by-storefront.sql"
+            : insertError.message.includes("start_date")
+              ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-start-date.sql"
+              : insertError.message,
+      );
       return;
     }
     onOpenChange(false);
@@ -137,7 +176,7 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Añadir juego</DialogTitle>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Busca en RAWG o pulsa Buscar / Enter para ver todos
+          Busca en IGDB o pulsa Buscar / Enter para ver todos
         </p>
       </DialogHeader>
 
@@ -200,9 +239,19 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{game.title}</p>
                       <p className="truncate text-xs text-[var(--muted)]">
-                        {game.platforms.slice(0, 2).join(", ")}
-                        {game.metacritic ? ` · MC ${game.metacritic}` : ""}
+                        {[
+                          game.released?.slice(0, 4),
+                          game.genres[0],
+                          game.platforms.slice(0, 2).join(", "),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
+                      {game.metacritic != null ? (
+                        <div className="mt-1">
+                          <MetacriticBadge score={game.metacritic} size="sm" />
+                        </div>
+                      ) : null}
                     </div>
                   </button>
                 </li>
@@ -221,65 +270,61 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
             )}
           </>
         ) : (
-          <form
-            className="space-y-4 animate-fade-in"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleSave();
-            }}
-          >
-            <div className="flex gap-4">
-              <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)]">
-                {selected.coverUrl && (
-                  <Image
-                    src={selected.coverUrl}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="80px"
-                    unoptimized
-                  />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="font-[family-name:var(--font-display)] text-lg font-semibold leading-snug">
-                  {selected.title}
-                </p>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  {selected.platforms.slice(0, 3).join(", ")}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 text-xs text-[var(--accent)] hover:underline"
-                  onClick={() => setSelected(null)}
-                >
-                  Cambiar juego
-                </button>
-              </div>
-            </div>
+            <div className="space-y-4 animate-fade-in">
+              <GameSearchPreview
+                game={selected}
+                onChangeGame={() => setSelected(null)}
+              />
 
+              <form
+                className="space-y-4"
+                onKeyDown={submitFormOnEnter}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleSave();
+                }}
+              >
             <GameDestinationFields
               destination={destination}
               onDestinationChange={setDestination}
               shelfStatus={shelfStatus}
               onShelfStatusChange={setShelfStatus}
+              storefronts={storefronts}
+              onStorefrontsChange={setStorefronts}
+              prices={prices}
+              onPricesChange={setPrices}
+              hoursPlayed={hoursPlayed}
+              onHoursPlayedChange={setHoursPlayed}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
               finishDate={finishDate}
               onFinishDateChange={setFinishDate}
             />
 
             <Button
               type="submit"
-              className="w-full"
-              disabled={!destination || saving}
+              className={cn(
+                "w-full",
+                destination === "wishlist" &&
+                  "bg-amber-500 text-white hover:bg-amber-600 focus-visible:ring-amber-500",
+              )}
+              disabled={
+                !destination ||
+                saving ||
+                (destination === "shelf" && storefronts.length === 0)
+              }
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {!destination
-                ? "Elige Wishlist o Estantería"
+                ? "Elige Wishlist o Biblioteca"
                 : destination === "wishlist"
                   ? "Añadir a Wishlist"
-                  : "Añadir a la estantería"}
+                  : storefronts.length === 0
+                    ? "Elige tienda(s)"
+                    : "Añadir a la biblioteca"}
             </Button>
-          </form>
+              </form>
+            </div>
         )}
 
         {error && (
@@ -291,12 +336,12 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
         <p className="text-center text-[11px] text-[var(--muted)]">
           Datos de videojuegos por{" "}
           <a
-            href="https://rawg.io"
+            href="https://www.igdb.com"
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-[var(--foreground)]"
           >
-            RAWG
+            IGDB
           </a>
         </p>
       </DialogBody>

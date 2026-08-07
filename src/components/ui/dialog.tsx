@@ -129,7 +129,7 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
     };
   }, [open, onOpenChange]);
 
-  // Reserva hueco para la barra de flechas y deja el campo visible.
+  // Solo reservar hueco si hay barra de flechas (2+ campos)
   React.useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
@@ -137,13 +137,45 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
 
     let blurTimer: number | null = null;
 
+    const countFields = () => {
+      const nodes = panel.querySelectorAll(
+        "input, textarea, select, [contenteditable]:not([contenteditable='false'])",
+      );
+      let n = 0;
+      for (const node of nodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node instanceof HTMLInputElement) {
+          const type = (node.type || "text").toLowerCase();
+          if (
+            [
+              "button",
+              "checkbox",
+              "radio",
+              "submit",
+              "reset",
+              "file",
+              "hidden",
+              "image",
+              "range",
+              "color",
+            ].includes(type)
+          ) {
+            continue;
+          }
+        }
+        n += 1;
+      }
+      return n;
+    };
+
     const onFocusIn = (e: FocusEvent) => {
       if (!isDialogTextField(e.target)) return;
       if (blurTimer != null) {
         window.clearTimeout(blurTimer);
         blurTimer = null;
       }
-      setFieldFocused(true);
+      // Hueco solo si habrá barra de flechas
+      setFieldFocused(countFields() >= 2);
     };
 
     const onFocusOut = () => {

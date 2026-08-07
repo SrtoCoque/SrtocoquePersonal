@@ -142,6 +142,10 @@ export function SportHistoryDayView({
     load();
   }, [load]);
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [date]);
+
   const groupsTitle = useMemo(() => {
     const titles: string[] = [];
     if (cardioWorkouts.length > 0) titles.push("Cardio");

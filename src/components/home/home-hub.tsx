@@ -224,6 +224,7 @@ export function HomeHub({ email }: { email: string | null }) {
                 href={section.href}
                 className={cardClass}
                 style={{ animationDelay: `${index * 40}ms` }}
+                onClick={() => window.scrollTo(0, 0)}
               >
                 {content}
               </Link>

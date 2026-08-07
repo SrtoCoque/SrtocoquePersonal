@@ -2,7 +2,15 @@ import { resolveMovieProviderLogo } from "@/lib/movie-provider-logos";
 
 export type BookStatus = "wishlist" | "owned" | "reading" | "read";
 
-export type GameStatus = "wishlist" | "owned" | "playing" | "completed";
+export type GameStatus =
+  | "wishlist"
+  | "owned"
+  | "playing"
+  | "replaying"
+  | "completed"
+  | "dropped";
+
+export type GamePlaythroughKind = "completed" | "replay";
 
 export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
 
@@ -35,12 +43,49 @@ export type UserGame = {
   developers: string[];
   cover_url: string | null;
   platforms: string[];
+  /** Steam / PlayStation / Xbox / GOG / Epic (una o varias) */
+  storefronts: (
+    | "steam"
+    | "playstation"
+    | "xbox"
+    | "nintendo"
+    | "gog"
+    | "epic"
+    | "downloaded"
+  )[];
   released: string | null;
   metacritic: number | null;
   status: GameStatus;
   hours_played: number;
+  /** Precio pagado por tienda en €, p.ej. { steam: 19.99, nintendo: 40 } */
+  prices: Partial<
+    Record<
+      | "steam"
+      | "playstation"
+      | "xbox"
+      | "nintendo"
+      | "gog"
+      | "epic"
+      | "downloaded",
+      number
+    >
+  >;
   playtime_estimate: number | null;
+  start_date: string | null;
   finish_date: string | null;
+  rating: number | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type UserGamePlaythrough = {
+  id: string;
+  user_game_id: string;
+  user_id: string;
+  kind: GamePlaythroughKind;
+  start_date: string | null;
+  finish_date: string | null;
+  hours_played: number;
   rating: number | null;
   created_at: string;
 };
@@ -66,6 +111,8 @@ export type RawgGameResult = {
   developers: string[];
   coverUrl: string | null;
   platforms: string[];
+  genres: string[];
+  summary: string | null;
   released: string | null;
   metacritic: number | null;
   playtimeEstimate: number | null;
@@ -226,14 +273,23 @@ export const GAME_STATUS_LABELS: Record<GameStatus, string> = {
   wishlist: "Wishlist",
   owned: "Sin empezar",
   playing: "Jugando",
+  replaying: "Rejugando",
   completed: "Completado",
+  dropped: "Sin terminar",
 };
 
 export const GAME_STATUS_HINTS: Record<GameStatus, string> = {
   wishlist: "Lo quiero, pero aún no lo tengo",
   owned: "Lo tengo, sin empezar",
   playing: "Lo tengo · jugando ahora",
+  replaying: "Lo tengo · segunda (o más) partida",
   completed: "Lo tengo · terminado",
+  dropped: "Lo jugué, pero no lo terminé",
+};
+
+export const GAME_PLAYTHROUGH_KIND_LABELS: Record<GamePlaythroughKind, string> = {
+  completed: "Completado",
+  replay: "Rejugado",
 };
 
 export const MOVIE_STATUS_LABELS: Record<MovieStatus, string> = {
@@ -251,7 +307,7 @@ export const MOVIE_WATCH_LOCATION_LABELS: Record<MovieWatchLocation, string> = {
 export type ShelfStatus = Extract<BookStatus, "owned" | "reading" | "read">;
 export type GameShelfStatus = Extract<
   GameStatus,
-  "owned" | "playing" | "completed"
+  "owned" | "playing" | "replaying" | "completed" | "dropped"
 >;
 export type MovieShelfStatus = Extract<
   MovieStatus,
@@ -262,7 +318,9 @@ export const SHELF_STATUSES: ShelfStatus[] = ["owned", "reading", "read"];
 export const GAME_SHELF_STATUSES: GameShelfStatus[] = [
   "owned",
   "playing",
+  "replaying",
   "completed",
+  "dropped",
 ];
 export const MOVIE_SHELF_STATUSES: MovieShelfStatus[] = [
   "owned",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchRawgGames } from "@/lib/rawg";
+import { hasIgdbCredentials, searchIgdbGames } from "@/lib/igdb";
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q") ?? "";
@@ -12,18 +12,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results: [] });
   }
 
-  if (!process.env.RAWG_API_KEY) {
+  if (!hasIgdbCredentials()) {
     return NextResponse.json(
       {
         error:
-          "Falta RAWG_API_KEY en .env.local. Crea una clave en https://rawg.io/apidocs",
+          "Faltan IGDB_CLIENT_ID e IGDB_CLIENT_SECRET en .env.local. Crea una app Confidential en https://dev.twitch.tv/console (sirve para IGDB).",
       },
       { status: 503 },
     );
   }
 
   try {
-    const results = await searchRawgGames(q, limit);
+    const results = await searchIgdbGames(q, limit);
     return NextResponse.json({ results });
   } catch (error) {
     console.error(error);

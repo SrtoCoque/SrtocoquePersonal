@@ -8,6 +8,7 @@ import { ArrowLeft, Bookmark, Check, Gamepad2, Loader2, Search, Star } from "luc
 import { GamesHeader } from "@/components/layout/games-header";
 import { EditGameDialog } from "@/components/games/edit-game-dialog";
 import { SaveGameDialog } from "@/components/games/save-game-dialog";
+import { MetacriticBadge } from "@/components/games/metacritic-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
@@ -36,11 +37,23 @@ const IN_LIBRARY: Record<
     ring: "ring-2 ring-sky-500/70 border-sky-500/40",
     Icon: Gamepad2,
   },
+  replaying: {
+    label: "Lo estás rejugando",
+    bar: "bg-orange-500 text-white",
+    ring: "ring-2 ring-orange-500/70 border-orange-500/40",
+    Icon: Gamepad2,
+  },
   completed: {
     label: "Ya lo has completado",
     bar: "bg-emerald-600 text-white",
     ring: "ring-2 ring-emerald-500/70 border-emerald-500/40",
     Icon: Check,
+  },
+  dropped: {
+    label: "Sin terminar",
+    bar: "bg-zinc-500 text-white",
+    ring: "ring-2 ring-zinc-500/70 border-zinc-500/40",
+    Icon: Gamepad2,
   },
 };
 
@@ -157,9 +170,6 @@ export function GamesSearchView({
           <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
             Buscar videojuegos
           </h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Resultados de RAWG · si ya lo tienes, se abre editar
-          </p>
         </div>
 
         <form onSubmit={submitSearch} className="mb-8 flex gap-2">
@@ -253,25 +263,54 @@ export function GamesSearchView({
                           <span className="line-clamp-1">{inLib.label}</span>
                         </div>
                       ) : null}
+                      {game.metacritic != null ? (
+                        <MetacriticBadge
+                          score={game.metacritic}
+                          className="absolute right-2 top-2"
+                        />
+                      ) : null}
                     </div>
                     <div className="flex flex-1 flex-col gap-1 p-3">
                       <h2 className="line-clamp-2 font-[family-name:var(--font-display)] text-sm font-semibold leading-snug">
                         {game.title}
                       </h2>
                       <p className="line-clamp-1 text-xs text-[var(--muted)]">
-                        {game.platforms.slice(0, 2).join(", ")}
+                        {[
+                          game.released?.slice(0, 4),
+                          game.genres[0],
+                          game.platforms.slice(0, 2).join(", "),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
-                      <div className="mt-auto flex items-center gap-2 pt-1 text-[10px] text-[var(--muted)]">
-                        {game.metacritic ? (
-                          <span>MC {game.metacritic}</span>
-                        ) : null}
-                        {game.rating ? (
-                          <span className="inline-flex items-center gap-0.5 text-amber-500">
-                            <Star className="h-3 w-3 fill-current" />
-                            {game.rating.toFixed(1)}
-                          </span>
-                        ) : null}
-                      </div>
+                      {(() => {
+                        const hours = existing
+                          ? Number(existing.hours_played) || 0
+                          : 0;
+                        const showHours =
+                          existing &&
+                          (existing.status === "playing" ||
+                            existing.status === "replaying" ||
+                            existing.status === "completed" ||
+                            existing.status === "dropped") &&
+                          hours > 0;
+                        if (!game.rating && !showHours) return null;
+                        return (
+                          <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[10px]">
+                            {game.rating ? (
+                              <span className="inline-flex items-center gap-0.5 text-amber-500">
+                                <Star className="h-3 w-3 fill-current" />
+                                {game.rating.toFixed(1)}
+                              </span>
+                            ) : null}
+                            {showHours ? (
+                              <span className="text-[var(--muted)]">
+                                {hours} Horas
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </button>
                 );
@@ -283,12 +322,12 @@ export function GamesSearchView({
         <p className="mt-10 text-center text-xs text-[var(--muted)]">
           Datos de videojuegos por{" "}
           <a
-            href="https://rawg.io"
+            href="https://www.igdb.com"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
           >
-            RAWG
+            IGDB
           </a>
         </p>
       </main>

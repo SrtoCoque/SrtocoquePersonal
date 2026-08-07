@@ -299,59 +299,57 @@ export function KeyboardFocusGuard() {
 
   if (!mobile || !focused || barTop == null) return null;
 
-  const showArrows = nav.total >= 2;
+  // Con un solo campo el teclado ya trae Buscar/Listo; la barra sobra
+  if (nav.total < 2) return null;
 
   return (
     <div
       className={cn(
-        "fixed inset-x-0 z-[60] flex h-12 items-center gap-2 border-t border-[var(--border)]",
+        "fixed inset-x-0 z-[60] flex h-12 items-center justify-between gap-2 border-t border-[var(--border)]",
         "bg-[var(--surface)]/95 px-2 backdrop-blur-md",
-        showArrows ? "justify-between" : "justify-end",
       )}
       style={{ top: barTop }}
       onPointerDown={(e) => e.preventDefault()}
     >
-      {showArrows ? (
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            aria-label="Campo anterior"
-            disabled={!nav.hasPrev}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              if (nav.hasPrev) moveFocus(-1);
-            }}
-            className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-lg",
-              nav.hasPrev
-                ? "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
-                : "text-[var(--muted)] opacity-40",
-            )}
-          >
-            <ChevronUp className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Campo siguiente"
-            disabled={!nav.hasNext}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              if (nav.hasNext) moveFocus(1);
-            }}
-            className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-lg",
-              nav.hasNext
-                ? "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
-                : "text-[var(--muted)] opacity-40",
-            )}
-          >
-            <ChevronDown className="h-5 w-5" />
-          </button>
-          <span className="ml-1 text-xs tabular-nums text-[var(--muted)]">
-            {nav.index + 1}/{nav.total}
-          </span>
-        </div>
-      ) : null}
+      <div className="flex items-center gap-0.5">
+        <button
+          type="button"
+          aria-label="Campo anterior"
+          disabled={!nav.hasPrev}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            if (nav.hasPrev) moveFocus(-1);
+          }}
+          className={cn(
+            "inline-flex h-10 w-10 items-center justify-center rounded-lg",
+            nav.hasPrev
+              ? "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+              : "text-[var(--muted)] opacity-40",
+          )}
+        >
+          <ChevronUp className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Campo siguiente"
+          disabled={!nav.hasNext}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            if (nav.hasNext) moveFocus(1);
+          }}
+          className={cn(
+            "inline-flex h-10 w-10 items-center justify-center rounded-lg",
+            nav.hasNext
+              ? "text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+              : "text-[var(--muted)] opacity-40",
+          )}
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+        <span className="ml-1 text-xs tabular-nums text-[var(--muted)]">
+          {nav.index + 1}/{nav.total}
+        </span>
+      </div>
       <button
         type="button"
         onPointerDown={(e) => {

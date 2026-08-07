@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -48,6 +48,10 @@ function GamesHeaderBar({
   const searchParams = useSearchParams();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname, searchParams]);
 
   async function signOut() {
     const supabase = createClient();

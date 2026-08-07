@@ -137,14 +137,19 @@ export function SportHistoryView({
     load();
   }, [load]);
 
+  // Evita entrar a medias de scroll (p. ej. tras el menú hamburguesa en iOS)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="min-h-screen">
       <SportHeader email={email} />
 
-      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto w-full min-w-0 max-w-6xl px-4 pb-6 pt-5 sm:px-6 sm:py-8">
         <Link
           href="/deporte"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+          className="mb-3 inline-flex items-center gap-1.5 text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
         >
           <ArrowLeft className="h-4 w-4" />
           Volver a grupos

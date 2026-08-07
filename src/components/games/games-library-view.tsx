@@ -9,32 +9,54 @@ import { CurrentlyPlaying } from "@/components/games/currently-playing";
 import { EditGameDialog } from "@/components/games/edit-game-dialog";
 import { GameCard } from "@/components/games/game-card";
 import { GameSection } from "@/components/games/game-section";
+import {
+  GAME_STOREFRONT_LABELS,
+  GAME_STOREFRONTS,
+  GameStorefrontIcon,
+  isGameStorefront,
+  normalizeStorefronts,
+  type GameStorefront,
+} from "@/components/games/game-storefront";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import type { GameStatus, UserGame } from "@/lib/types";
 import { isGameOnShelf } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | "shelf" | GameStatus;
+type FilterMode = "status" | "platform";
+type StatusFilter = "all" | "shelf" | GameStatus;
+type PlatformFilter = "all" | GameStorefront;
 
-const FILTERS: { id: Filter; label: string }[] = [
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "shelf", label: "Biblioteca" },
   { id: "playing", label: "Jugando" },
   { id: "wishlist", label: "Wishlist" },
   { id: "completed", label: "Completados" },
+  { id: "dropped", label: "Sin terminar" },
 ];
 
-function parseFilter(raw: string | null): Filter {
+function parseMode(raw: string | null): FilterMode {
+  return raw === "platform" ? "platform" : "status";
+}
+
+function parseStatusFilter(raw: string | null): StatusFilter {
   if (
     raw === "shelf" ||
     raw === "playing" ||
+    raw === "replaying" ||
     raw === "wishlist" ||
     raw === "completed" ||
+    raw === "dropped" ||
     raw === "owned"
   ) {
     return raw;
   }
+  return "all";
+}
+
+function parsePlatformFilter(raw: string | null): PlatformFilter {
+  if (raw && isGameStorefront(raw)) return raw;
   return "all";
 }
 
@@ -50,8 +72,14 @@ export function GamesLibraryView({
   const searchParams = useSearchParams();
   const [games, setGames] = useState<UserGame[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>(() =>
-    parseFilter(searchParams.get("filter")),
+  const [mode, setMode] = useState<FilterMode>(() =>
+    parseMode(searchParams.get("by")),
+  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
+    parseStatusFilter(searchParams.get("filter")),
+  );
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>(() =>
+    parsePlatformFilter(searchParams.get("platform")),
   );
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<UserGame | null>(null);
@@ -73,22 +101,61 @@ export function GamesLibraryView({
   }, [loadGames]);
 
   useEffect(() => {
-    setFilter(parseFilter(searchParams.get("filter")));
+    setMode(parseMode(searchParams.get("by")));
+    setStatusFilter(parseStatusFilter(searchParams.get("filter")));
+    setPlatformFilter(parsePlatformFilter(searchParams.get("platform")));
   }, [searchParams]);
 
-  function setFilterAndUrl(next: Filter) {
-    setFilter(next);
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "all") params.delete("filter");
-    else params.set("filter", next);
+  function writeUrl(next: {
+    mode?: FilterMode;
+    status?: StatusFilter;
+    platform?: PlatformFilter;
+  }) {
+    const nextMode = next.mode ?? mode;
+    const nextStatus = next.status ?? statusFilter;
+    const nextPlatform = next.platform ?? platformFilter;
+    setMode(nextMode);
+    setStatusFilter(nextStatus);
+    setPlatformFilter(nextPlatform);
+
+    const params = new URLSearchParams();
+    if (nextMode === "platform") {
+      params.set("by", "platform");
+      if (nextPlatform !== "all") params.set("platform", nextPlatform);
+    } else {
+      if (nextStatus !== "all") params.set("filter", nextStatus);
+    }
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
-  const playingGames = useMemo(
-    () => games.filter((g) => g.status === "playing"),
-    [games],
+  const platformCounts = useMemo(() => {
+    const counts = Object.fromEntries(
+      GAME_STOREFRONTS.map((sf) => [sf, 0]),
+    ) as Record<GameStorefront, number>;
+    for (const game of games) {
+      for (const sf of normalizeStorefronts(game.storefronts)) {
+        counts[sf] += 1;
+      }
+    }
+    return counts;
+  }, [games]);
+
+  const platformsWithGames = useMemo(
+    () => GAME_STOREFRONTS.filter((sf) => platformCounts[sf] > 0),
+    [platformCounts],
   );
+
+  const playingGames = useMemo(() => {
+    const list = games.filter(
+      (g) => g.status === "playing" || g.status === "replaying",
+    );
+    return list.sort((a, b) => {
+      const aTime = new Date(a.updated_at ?? a.created_at).getTime();
+      const bTime = new Date(b.updated_at ?? b.created_at).getTime();
+      return bTime - aTime;
+    });
+  }, [games]);
   const wishlistGames = useMemo(
     () => games.filter((g) => g.status === "wishlist"),
     [games],
@@ -98,54 +165,142 @@ export function GamesLibraryView({
     [games],
   );
 
-  const currentPlaying = playingGames[0] ?? null;
-
   const filtered = useMemo(() => {
-    if (filter === "all") return games;
-    if (filter === "shelf") return games.filter((g) => isGameOnShelf(g.status));
-    return games.filter((g) => g.status === filter);
-  }, [games, filter]);
+    if (mode === "platform") {
+      if (platformFilter === "all") return games;
+      return games.filter((g) =>
+        normalizeStorefronts(g.storefronts).includes(platformFilter),
+      );
+    }
+    if (statusFilter === "all") return games;
+    if (statusFilter === "shelf") {
+      return games.filter((g) => isGameOnShelf(g.status));
+    }
+    if (statusFilter === "playing") {
+      return games.filter(
+        (g) => g.status === "playing" || g.status === "replaying",
+      );
+    }
+    return games.filter((g) => g.status === statusFilter);
+  }, [games, mode, statusFilter, platformFilter]);
+
+  const showHome =
+    mode === "status" && statusFilter === "all" && !loading;
 
   return (
     <div className="min-h-screen">
       <GamesHeader email={email} onAddGame={() => setAddOpen(true)} />
 
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-        <div className="mb-6 flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
-              Videojuegos
-            </h1>
-            <p className="text-sm text-[var(--muted)]">
-              {games.length}{" "}
-              {games.length === 1 ? "juego guardado" : "juegos guardados"}
-            </p>
+        <div className="mb-6 flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight">
+                Videojuegos
+              </h1>
+              <p className="text-sm text-[var(--muted)]">
+                {games.length}{" "}
+                {games.length === 1 ? "juego guardado" : "juegos guardados"}
+              </p>
+            </div>
+
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 sm:w-auto">
+              {(
+                [
+                  { id: "status" as const, label: "Estado" },
+                  { id: "platform" as const, label: "Plataforma" },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() =>
+                    writeUrl({
+                      mode: m.id,
+                      status: "all",
+                      platform: "all",
+                    })
+                  }
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    mode === m.id
+                      ? "bg-[var(--accent)] text-[var(--accent-fg)] font-medium"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 sm:w-auto">
-            {FILTERS.map((f) => (
+          {mode === "status" ? (
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-1">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => writeUrl({ status: f.id })}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    statusFilter === f.id
+                      ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-1">
               <button
-                key={f.id}
                 type="button"
-                onClick={() => setFilterAndUrl(f.id)}
+                onClick={() => writeUrl({ platform: "all" })}
                 className={cn(
                   "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
-                  filter === f.id
-                    ? "bg-[var(--accent)] text-[var(--accent-fg)] font-medium"
+                  platformFilter === "all"
+                    ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
                     : "text-[var(--muted)] hover:text-[var(--foreground)]",
                 )}
               >
-                {f.label}
+                Todas ({games.length})
               </button>
-            ))}
-          </div>
+              {platformsWithGames.map((sf) => (
+                <button
+                  key={sf}
+                  type="button"
+                  title={GAME_STOREFRONT_LABELS[sf]}
+                  onClick={() => writeUrl({ platform: sf })}
+                  className={cn(
+                    "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    platformFilter === sf
+                      ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  <GameStorefrontIcon storefront={sf} className="h-4 w-4" />
+                  <span>{GAME_STOREFRONT_LABELS[sf]}</span>
+                  <span
+                    className={cn(
+                      platformFilter === sf
+                        ? "text-[var(--foreground)]/70"
+                        : "text-[var(--muted)]",
+                    )}
+                  >
+                    ({platformCounts[sf]})
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {loading ? (
           <div className="space-y-8">
             <div className="h-48 animate-pulse rounded-2xl bg-[var(--surface-2)]" />
           </div>
-        ) : filter === "all" ? (
+        ) : showHome ? (
           games.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50 px-6 py-16 text-center">
               <Gamepad2 className="mb-3 h-10 w-10 text-[var(--muted)] opacity-50" />
@@ -160,7 +315,7 @@ export function GamesLibraryView({
           ) : (
             <div className="space-y-10">
               <CurrentlyPlaying
-                game={currentPlaying}
+                games={playingGames}
                 onEdit={setEditing}
                 onAdd={() => setAddOpen(true)}
               />
@@ -168,7 +323,7 @@ export function GamesLibraryView({
                 title="Wishlist"
                 subtitle="Juegos que quieres conseguir"
                 games={wishlistGames}
-                onSeeMore={() => setFilterAndUrl("wishlist")}
+                onSeeMore={() => writeUrl({ status: "wishlist" })}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía."
               />
@@ -176,7 +331,7 @@ export function GamesLibraryView({
                 title="Biblioteca"
                 subtitle="Todo lo que ya tienes (sin empezar, jugando o completado)"
                 games={shelfGames}
-                onSeeMore={() => setFilterAndUrl("shelf")}
+                onSeeMore={() => writeUrl({ status: "shelf" })}
                 onEdit={setEditing}
                 emptyLabel="Aún no has añadido juegos a tu biblioteca."
               />
@@ -190,7 +345,13 @@ export function GamesLibraryView({
             <Button
               className="mt-5"
               variant="secondary"
-              onClick={() => setFilterAndUrl("all")}
+              onClick={() =>
+                writeUrl({
+                  mode: "status",
+                  status: "all",
+                  platform: "all",
+                })
+              }
             >
               Volver a Todos
             </Button>
@@ -208,12 +369,12 @@ export function GamesLibraryView({
         <p className="mt-10 text-center text-xs text-[var(--muted)]">
           Datos de videojuegos por{" "}
           <a
-            href="https://rawg.io"
+            href="https://www.igdb.com"
             target="_blank"
             rel="noopener noreferrer"
             className="underline"
           >
-            RAWG
+            IGDB
           </a>
         </p>
       </main>
