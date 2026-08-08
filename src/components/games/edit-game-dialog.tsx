@@ -135,6 +135,7 @@ export function EditGameDialog({
   const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [editingStorefronts, setEditingStorefronts] = useState(false);
   const [editingPrices, setEditingPrices] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
   const [savingPlaythrough, setSavingPlaythrough] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -178,6 +179,7 @@ export function EditGameDialog({
     setShowAllStatuses(false);
     setEditingStorefronts(false);
     setEditingPrices(false);
+    setCoverOpen(false);
     setError(null);
 
     void (async () => {
@@ -190,6 +192,15 @@ export function EditGameDialog({
       setPlaythroughs((data as UserGamePlaythrough[]) ?? []);
     })();
   }, [game, open]);
+
+  useEffect(() => {
+    if (!coverOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setCoverOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [coverOpen]);
 
   const statusOptions = useMemo(() => {
     const hideWishlist =
@@ -258,6 +269,13 @@ export function EditGameDialog({
   function beginDropPlaying() {
     setFinishDate(todayISO());
     setDropFinishReady(true);
+  }
+
+  function beginCompletePlaying() {
+    setFinishDate(todayISO());
+    setDropFinishReady(false);
+    setReplayFinishReady(false);
+    setStatus("completed");
   }
 
   function startEditPlaythrough(p: UserGamePlaythrough) {
@@ -738,6 +756,7 @@ export function EditGameDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader onClose={() => onOpenChange(false)}>
         <DialogTitle>Editar juego</DialogTitle>
@@ -752,8 +771,14 @@ export function EditGameDialog({
           }}
         >
           <div className="flex gap-3">
-            <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
-              {game.cover_url && (
+            {game.cover_url ? (
+              <button
+                type="button"
+                onClick={() => setCoverOpen(true)}
+                aria-label="Ver portada en grande"
+                title="Ver portada en grande"
+                className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              >
                 <Image
                   src={game.cover_url}
                   alt=""
@@ -762,8 +787,10 @@ export function EditGameDialog({
                   sizes="56px"
                   unoptimized
                 />
-              )}
-            </div>
+              </button>
+            ) : (
+              <div className="relative h-20 w-14 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]" />
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -924,48 +951,69 @@ export function EditGameDialog({
                 </button>
               ) : null}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {statusOptions.map((s) => (
+            <div
+              className={cn(
+                "grid gap-2",
+                statusOptions.filter((s) => s !== "replaying").length === 3
+                  ? "grid-cols-3"
+                  : "grid-cols-2",
+              )}
+            >
+              {statusOptions
+                .filter((s) => s !== "replaying")
+                .map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => selectStatus(s)}
                   className={cn(
-                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                    s === "replaying" && "col-span-2 text-center",
+                    "rounded-lg border px-2 py-2.5 text-center transition-colors sm:px-3 sm:text-left",
                     status === s
                       ? s === "wishlist"
                         ? "border-amber-500 bg-amber-500/15"
-                        : s === "replaying"
-                          ? "border-red-500 bg-red-500/15"
-                          : s === "dropped"
-                            ? "border-zinc-500 bg-zinc-500/15"
-                            : "border-[var(--accent)] bg-[var(--accent)]/10"
-                      : s === "replaying"
-                        ? "border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400"
-                        : "border-[var(--border)] hover:bg-[var(--surface-2)]",
+                        : s === "dropped"
+                          ? "border-zinc-500 bg-zinc-500/15"
+                          : "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
                   )}
                 >
                   <span
                     className={cn(
-                      "block text-sm font-medium",
+                      "block text-xs font-medium sm:text-sm",
                       status === s
                         ? s === "wishlist"
                           ? "text-amber-700 dark:text-amber-300"
-                          : s === "replaying"
-                            ? "text-red-600 dark:text-red-400"
-                            : s === "dropped"
-                              ? "text-zinc-700 dark:text-zinc-300"
-                              : "text-[var(--accent)]"
-                        : s === "replaying"
-                          ? "text-red-600 dark:text-red-400"
-                          : "",
+                          : s === "dropped"
+                            ? "text-zinc-700 dark:text-zinc-300"
+                            : "text-[var(--accent)]"
+                        : "",
                     )}
                   >
                     {GAME_STATUS_LABELS[s]}
                   </span>
                 </button>
               ))}
+              {statusOptions.includes("replaying") ? (
+                <button
+                  type="button"
+                  onClick={() => selectStatus("replaying")}
+                  className={cn(
+                    "col-span-full rounded-lg border px-3 py-2.5 text-center transition-colors",
+                    status === "replaying"
+                      ? "border-red-500 bg-red-500/15"
+                      : "border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "block text-sm font-medium",
+                      status === "replaying" && "text-red-600 dark:text-red-400",
+                    )}
+                  >
+                    {GAME_STATUS_LABELS.replaying}
+                  </span>
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -1035,14 +1083,24 @@ export function EditGameDialog({
                 {showDropFinishButton ? (
                   <div className="space-y-2">
                     <Label>Finalizado</Label>
-                    <Button
-                      type="button"
-                      className="h-10 w-full border-zinc-500 bg-zinc-600 text-white hover:bg-zinc-700"
-                      disabled={busy}
-                      onClick={beginDropPlaying}
-                    >
-                      Sin terminar
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        className="h-10 w-full"
+                        disabled={busy}
+                        onClick={beginCompletePlaying}
+                      >
+                        Completado
+                      </Button>
+                      <Button
+                        type="button"
+                        className="h-10 w-full border-zinc-500 bg-zinc-600 text-white hover:bg-zinc-700"
+                        disabled={busy}
+                        onClick={beginDropPlaying}
+                      >
+                        Sin terminar
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
                 {showFinishDate ? (
@@ -1433,5 +1491,39 @@ export function EditGameDialog({
         </form>
       </DialogBody>
     </Dialog>
+
+      {coverOpen && game.cover_url ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Portada de ${game.title}`}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 animate-fade-in"
+          onClick={() => setCoverOpen(false)}
+        >
+          <button
+            type="button"
+            aria-label="Cerrar portada"
+            className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+            onClick={() => setCoverOpen(false)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div
+            className="relative h-[min(85vh,36rem)] w-[min(90vw,22rem)] overflow-hidden rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={game.cover_url}
+              alt={game.title}
+              fill
+              className="object-contain"
+              sizes="(max-width: 768px) 90vw, 352px"
+              unoptimized
+              priority
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
