@@ -180,15 +180,17 @@ export function storefrontsFromPlatformNames(
   return GAME_STOREFRONTS.filter((id) => found.has(id));
 }
 
-/** Iconos compactos: marcadas + disponibles (gris) de la API. */
+/** Iconos compactos: marcadas (+ precio) y disponibles en gris. */
 export function GameStorefrontChips({
   owned,
   available,
+  prices,
   onClick,
   className,
 }: {
   owned: GameStorefront[];
   available?: GameStorefront[];
+  prices?: Partial<Record<GameStorefront, number | "">>;
   onClick?: () => void;
   className?: string;
 }) {
@@ -212,25 +214,46 @@ export function GameStorefrontChips({
   }
 
   const inner = (
-    <span className={cn("mt-1 flex flex-wrap items-center gap-1.5", className)}>
+    <span
+      className={cn(
+        "mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]",
+        className,
+      )}
+    >
       {ids.map((id) => {
         const isOwned = ownedSet.has(id);
+        const raw = prices?.[id];
+        const price =
+          typeof raw === "number"
+            ? raw
+            : raw !== undefined && raw !== ""
+              ? Number(raw)
+              : NaN;
+        const hasPrice = isOwned && Number.isFinite(price) && price >= 0;
+
         return (
           <span
             key={id}
             title={
               isOwned
-                ? GAME_STOREFRONT_LABELS[id]
+                ? hasPrice
+                  ? `${GAME_STOREFRONT_LABELS[id]} · ${formatStorefrontPrice(price)}`
+                  : GAME_STOREFRONT_LABELS[id]
                 : `${GAME_STOREFRONT_LABELS[id]} (disponible)`
             }
             className={cn(
-              "inline-flex",
+              "inline-flex items-center gap-1",
               isOwned
                 ? "text-[var(--foreground)]"
                 : "text-[var(--muted)] opacity-45",
             )}
           >
             <GameStorefrontIcon storefront={id} className="h-3.5 w-3.5" />
+            {hasPrice ? (
+              <span className="text-[var(--muted)]">
+                {formatStorefrontPrice(price)}
+              </span>
+            ) : null}
           </span>
         );
       })}
@@ -243,8 +266,8 @@ export function GameStorefrontChips({
     <button
       type="button"
       onClick={onClick}
-      aria-label="Editar tiendas"
-      title="Editar tiendas"
+      aria-label="Editar tiendas y precios"
+      title="Editar tiendas y precios"
       className="rounded-md text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
     >
       {inner}
@@ -257,81 +280,6 @@ export function formatStorefrontPrice(value: number): string {
     style: "currency",
     currency: "EUR",
   }).format(value);
-}
-
-/** Una línea: icono + precio por tienda marcada. */
-export function GameStorefrontPricesLine({
-  storefronts,
-  prices,
-  onClick,
-  className,
-}: {
-  storefronts: GameStorefront[];
-  prices: Partial<Record<GameStorefront, number | "">>;
-  onClick?: () => void;
-  className?: string;
-}) {
-  const entries = storefronts
-    .map((sf) => {
-      const raw = prices[sf];
-      const n = typeof raw === "number" ? raw : Number(raw);
-      if (!Number.isFinite(n) || n < 0) return null;
-      return { sf, n };
-    })
-    .filter((e): e is { sf: GameStorefront; n: number } => e != null);
-
-  if (entries.length === 0) {
-    if (!onClick || storefronts.length === 0) return null;
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          "mt-1 text-left text-[11px] text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline",
-          className,
-        )}
-      >
-        Añadir precios…
-      </button>
-    );
-  }
-
-  const inner = (
-    <span
-      className={cn(
-        "mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[var(--muted)]",
-        className,
-      )}
-    >
-      {entries.map(({ sf, n }) => (
-        <span
-          key={sf}
-          title={GAME_STOREFRONT_LABELS[sf]}
-          className="inline-flex items-center gap-1"
-        >
-          <GameStorefrontIcon
-            storefront={sf}
-            className="h-3 w-3 text-[var(--foreground)]"
-          />
-          <span>{formatStorefrontPrice(n)}</span>
-        </span>
-      ))}
-    </span>
-  );
-
-  if (!onClick) return inner;
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Editar precios"
-      title="Editar precios"
-      className="rounded-md text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-    >
-      {inner}
-    </button>
-  );
 }
 
 export function GameStorefrontPicker({

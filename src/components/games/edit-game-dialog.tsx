@@ -32,7 +32,6 @@ import {
   GameStorefrontChips,
   GameStorefrontIcon,
   GameStorefrontPicker,
-  GameStorefrontPricesLine,
   isGameStorefront,
   normalizeStorefronts,
   storefrontsFromPlatformNames,
@@ -134,7 +133,6 @@ export function EditGameDialog({
   const [dropFinishReady, setDropFinishReady] = useState(false);
   const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [editingStorefronts, setEditingStorefronts] = useState(false);
-  const [editingPrices, setEditingPrices] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [savingPlaythrough, setSavingPlaythrough] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -178,7 +176,6 @@ export function EditGameDialog({
     setAddingPlaythrough(false);
     setShowAllStatuses(false);
     setEditingStorefronts(false);
-    setEditingPrices(false);
     setCoverOpen(false);
     setError(null);
 
@@ -806,15 +803,15 @@ export function EditGameDialog({
                         <GameStorefrontChips
                           owned={storefronts}
                           available={availableStorefronts}
-                          onClick={() => {
-                            setEditingStorefronts(true);
-                            setEditingPrices(false);
-                          }}
+                          prices={prices}
+                          onClick={() => setEditingStorefronts(true)}
                         />
                       ) : (
-                        <div className="mt-2 space-y-2 rounded-xl border border-[var(--border)] p-2.5">
+                        <div className="mt-2 space-y-3 rounded-xl border border-[var(--border)] p-2.5">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-medium">Tiendas</p>
+                            <p className="text-xs font-medium">
+                              Tiendas y precios
+                            </p>
                             <Button
                               type="button"
                               variant="ghost"
@@ -830,75 +827,54 @@ export function EditGameDialog({
                             onChange={applyStorefronts}
                             required
                           />
+                          {storefronts.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs text-[var(--muted)]">
+                                Precio pagado (€) por tienda marcada
+                              </p>
+                              <div className="space-y-2">
+                                {storefronts.map((sf) => (
+                                  <div
+                                    key={sf}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span
+                                      title={GAME_STOREFRONT_LABELS[sf]}
+                                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)]"
+                                    >
+                                      <GameStorefrontIcon
+                                        storefront={sf}
+                                        className="h-4 w-4"
+                                      />
+                                    </span>
+                                    <Input
+                                      id={`edit-price-${sf}`}
+                                      type="number"
+                                      inputMode="decimal"
+                                      min={0}
+                                      step={0.01}
+                                      placeholder={GAME_STOREFRONT_LABELS[sf]}
+                                      aria-label={`Precio en ${GAME_STOREFRONT_LABELS[sf]}`}
+                                      value={prices[sf] ?? ""}
+                                      onChange={(e) => {
+                                        const raw = e.target.value;
+                                        if (raw === "") {
+                                          setPrices({ ...prices, [sf]: "" });
+                                          return;
+                                        }
+                                        const n = Number(raw);
+                                        if (!Number.isFinite(n) || n < 0)
+                                          return;
+                                        setPrices({ ...prices, [sf]: n });
+                                      }}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       )}
-                      {storefronts.length > 0 ? (
-                        !editingPrices ? (
-                          <GameStorefrontPricesLine
-                            storefronts={storefronts}
-                            prices={prices}
-                            onClick={() => {
-                              setEditingPrices(true);
-                              setEditingStorefronts(false);
-                            }}
-                          />
-                        ) : (
-                          <div className="mt-2 space-y-2 rounded-xl border border-[var(--border)] p-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium">
-                                Precio pagado (€)
-                              </p>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => setEditingPrices(false)}
-                              >
-                                Listo
-                              </Button>
-                            </div>
-                            <div className="space-y-2">
-                              {storefronts.map((sf) => (
-                                <div
-                                  key={sf}
-                                  className="flex items-center gap-2"
-                                >
-                                  <span
-                                    title={GAME_STOREFRONT_LABELS[sf]}
-                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)]"
-                                  >
-                                    <GameStorefrontIcon
-                                      storefront={sf}
-                                      className="h-4 w-4"
-                                    />
-                                  </span>
-                                  <Input
-                                    id={`edit-price-${sf}`}
-                                    type="number"
-                                    inputMode="decimal"
-                                    min={0}
-                                    step={0.01}
-                                    placeholder={GAME_STOREFRONT_LABELS[sf]}
-                                    aria-label={`Precio en ${GAME_STOREFRONT_LABELS[sf]}`}
-                                    value={prices[sf] ?? ""}
-                                    onChange={(e) => {
-                                      const raw = e.target.value;
-                                      if (raw === "") {
-                                        setPrices({ ...prices, [sf]: "" });
-                                        return;
-                                      }
-                                      const n = Number(raw);
-                                      if (!Number.isFinite(n) || n < 0) return;
-                                      setPrices({ ...prices, [sf]: n });
-                                    }}
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      ) : null}
                     </>
                   ) : availableStorefronts.length > 0 ? (
                     <GameStorefrontChips
@@ -1047,46 +1023,57 @@ export function EditGameDialog({
                   onChange={(e) => setHoursPlayed(Number(e.target.value))}
                 />
               </div>
-              <div
-                className={cn(
-                  "grid gap-3",
-                  status === "replaying" ||
-                    status === "completed" ||
-                    status === "dropped" ||
-                    status === "playing"
-                    ? "grid-cols-2"
-                    : "grid-cols-1",
-                )}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="game-start">Inicio</Label>
-                  <Input
-                    id="game-start"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                {showReplayFinishButton ? (
+              <div className="space-y-3">
+                <div
+                  className={cn(
+                    "grid gap-3",
+                    showFinishDate || showReplayFinishButton
+                      ? "grid-cols-2"
+                      : "grid-cols-1",
+                  )}
+                >
                   <div className="space-y-2">
-                    <Label>Finalizado</Label>
-                    <Button
-                      type="button"
-                      className="h-10 w-full border-red-500 bg-red-600 text-white hover:bg-red-700"
-                      disabled={busy}
-                      onClick={beginFinishReplay}
-                    >
-                      Finalizar
-                    </Button>
+                    <Label htmlFor="game-start">Inicio</Label>
+                    <Input
+                      id="game-start"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
                   </div>
-                ) : null}
+                  {showReplayFinishButton ? (
+                    <div className="space-y-2">
+                      <Label>Finalizado</Label>
+                      <Button
+                        type="button"
+                        className="h-10 w-full border-red-500 bg-red-600 text-white hover:bg-red-700"
+                        disabled={busy}
+                        onClick={beginFinishReplay}
+                      >
+                        Finalizar
+                      </Button>
+                    </div>
+                  ) : null}
+                  {showFinishDate ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="game-finish">Finalizado</Label>
+                      <Input
+                        id="game-finish"
+                        type="date"
+                        value={finishDate}
+                        min={startDate || undefined}
+                        onChange={(e) => setFinishDate(e.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
                 {showDropFinishButton ? (
                   <div className="space-y-2">
                     <Label>Finalizado</Label>
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         type="button"
-                        className="h-10 w-full"
+                        className="h-10 w-full px-2 text-sm"
                         disabled={busy}
                         onClick={beginCompletePlaying}
                       >
@@ -1094,25 +1081,13 @@ export function EditGameDialog({
                       </Button>
                       <Button
                         type="button"
-                        className="h-10 w-full border-zinc-500 bg-zinc-600 text-white hover:bg-zinc-700"
+                        className="h-10 w-full border-zinc-500 bg-zinc-600 px-2 text-sm text-white hover:bg-zinc-700"
                         disabled={busy}
                         onClick={beginDropPlaying}
                       >
                         Sin terminar
                       </Button>
                     </div>
-                  </div>
-                ) : null}
-                {showFinishDate ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="game-finish">Finalizado</Label>
-                    <Input
-                      id="game-finish"
-                      type="date"
-                      value={finishDate}
-                      min={startDate || undefined}
-                      onChange={(e) => setFinishDate(e.target.value)}
-                    />
                   </div>
                 ) : null}
               </div>
