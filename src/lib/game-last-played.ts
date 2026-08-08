@@ -7,6 +7,10 @@ function parseActivityMs(iso: string | null | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+function toISODate(isoOrDay: string): string {
+  return isoOrDay.length >= 10 ? isoOrDay.slice(0, 10) : isoOrDay;
+}
+
 /**
  * Última actividad jugable: max entre Steam (rtime_last_played),
  * último log de horas, inicio de la sesión «jugando» y updated_at.
@@ -28,6 +32,39 @@ export function lastPlayedActivityMs(
     parseActivityMs(game.updated_at),
     parseActivityMs(game.created_at),
   );
+}
+
+/** Día ISO (YYYY-MM-DD) de la última vez jugada: Steam o log de horas. */
+export function lastPlayedOnDate(
+  game: Pick<UserGame, "steam_last_played_at">,
+  latestHourPlayedOn?: string | null,
+): string | null {
+  const steam = game.steam_last_played_at
+    ? toISODate(game.steam_last_played_at)
+    : null;
+  const hours = latestHourPlayedOn ? toISODate(latestHourPlayedOn) : null;
+  if (steam && hours) return steam >= hours ? steam : hours;
+  return steam ?? hours;
+}
+
+export function formatLastPlayedLabel(
+  game: Pick<UserGame, "steam_last_played_at" | "hours_played">,
+  latestHourPlayedOn?: string | null,
+): string | null {
+  const hours = Number(game.hours_played) || 0;
+  if (hours <= 0) return null;
+  const day = lastPlayedOnDate(game, latestHourPlayedOn);
+  if (!day) return null;
+  try {
+    const label = new Intl.DateTimeFormat("es-ES", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${day}T12:00:00`));
+    return `Última: ${label}`;
+  } catch {
+    return `Última: ${day}`;
+  }
 }
 
 /** Mapa user_game_id → played_on más reciente. */

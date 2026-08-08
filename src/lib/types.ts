@@ -54,6 +54,8 @@ export type UserGame = {
   )[];
   released: string | null;
   metacritic: number | null;
+  /** Géneros (IGDB / Steam Store). */
+  genres?: string[];
   status: GameStatus;
   hours_played: number;
   /** Precio pagado por tienda en €, p.ej. { steam: 19.99, nintendo: 40 } */
@@ -85,6 +87,13 @@ export type UserGame = {
   steam_hours_played?: number;
   /** Última vez jugado en Steam (YYYY-MM-DD), desde rtime_last_played. */
   steam_last_played_at?: string | null;
+  /** Fecha añadido a wishlist Steam (YYYY-MM-DD). */
+  steam_wishlist_added_at?: string | null;
+  /** % reviews positivas Steam (0–100). */
+  steam_review_percent?: number | null;
+  steam_achievements_unlocked?: number | null;
+  steam_achievements_total?: number | null;
+  steam_achievements_synced_at?: string | null;
   /** Tienda desde la que se está jugando la partida actual */
   play_storefront?:
     | "steam"

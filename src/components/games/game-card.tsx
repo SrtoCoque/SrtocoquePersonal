@@ -11,9 +11,14 @@ import {
 } from "@/components/games/game-storefront";
 import { MetacriticBadge } from "@/components/games/metacritic-badge";
 import {
+  SteamAchievementsBadge,
+  SteamRatingBadge,
+} from "@/components/games/steam-rating-badge";
+import {
   normalizeGamePrices,
   sumGamePrices,
 } from "@/lib/game-prices";
+import { formatLastPlayedLabel } from "@/lib/game-last-played";
 
 const STATUS_BAR: Record<
   GameStatus,
@@ -49,9 +54,11 @@ const STATUS_BAR: Record<
 export function GameCard({
   game,
   onEdit,
+  latestHourPlayedOn,
 }: {
   game: UserGame;
   onEdit: (game: UserGame) => void;
+  latestHourPlayedOn?: string | null;
 }) {
   const statusMeta = STATUS_BAR[game.status];
   const StatusIcon = statusMeta.Icon;
@@ -64,9 +71,17 @@ export function GameCard({
       game.status === "completed" ||
       game.status === "dropped") &&
     hours > 0;
+  const lastPlayedLabel = formatLastPlayedLabel(game, latestHourPlayedOn);
   const timesCompleted = Number(game.times_completed) || 0;
   const showTimes = timesCompleted > 1;
   const showPrice = totalPaid > 0;
+  const reviewPercent =
+    game.steam_review_percent != null &&
+    Number.isFinite(Number(game.steam_review_percent))
+      ? Number(game.steam_review_percent)
+      : null;
+  const achUnlocked = game.steam_achievements_unlocked;
+  const achTotal = game.steam_achievements_total;
 
   return (
     <button
@@ -106,6 +121,24 @@ export function GameCard({
           <MetacriticBadge
             score={game.metacritic}
             className="absolute right-2 top-2"
+          />
+        ) : null}
+        {reviewPercent != null ? (
+          <SteamRatingBadge
+            percent={reviewPercent}
+            className={cn(
+              "absolute right-2",
+              game.metacritic != null ? "top-11" : "top-2",
+            )}
+          />
+        ) : null}
+        {achUnlocked != null &&
+        achTotal != null &&
+        Number(achTotal) > 0 ? (
+          <SteamAchievementsBadge
+            unlocked={Number(achUnlocked)}
+            total={Number(achTotal)}
+            className="absolute bottom-9 left-2"
           />
         ) : null}
         <div
@@ -164,6 +197,7 @@ export function GameCard({
             {showHours ? (
               <span className="text-[10px] text-[var(--muted)]">
                 {hours} Horas
+                {lastPlayedLabel ? ` · ${lastPlayedLabel}` : ""}
               </span>
             ) : null}
             {showTimes ? (

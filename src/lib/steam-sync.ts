@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchIgdbGamesBySteamAppIds, hasIgdbCredentials } from "@/lib/igdb";
 import { allocateSteamHours } from "@/lib/steam-hours";
 import {
+  fetchSteamAchievementsSummary,
   fetchSteamOwnedGames,
   fetchSteamStoreDetails,
   fetchSteamWishlist,
@@ -9,6 +10,7 @@ import {
   isPlaceholderSteamTitle,
   steamLastPlayedOn,
   steamMinutesToHours,
+  wishlistDateAddedOn,
 } from "@/lib/steam";
 import { normalizeGamePrices } from "@/lib/game-prices";
 import {
@@ -33,6 +35,35 @@ function normalizeStorefronts(value: unknown): (typeof STOREFRONTS)[number][] {
   return value.filter((v): v is (typeof STOREFRONTS)[number] =>
     (STOREFRONTS as readonly string[]).includes(String(v)),
   );
+}
+
+function mergeUniqueStrings(
+  ...lists: Array<string[] | null | undefined>
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const list of lists) {
+    for (const raw of list ?? []) {
+      const v = raw.trim();
+      if (!v) continue;
+      const key = v.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+function needsAchievementRefresh(game: UserGame): boolean {
+  if (game.status === "wishlist") return false;
+  if (game.steam_app_id == null) return false;
+  const synced = game.steam_achievements_synced_at;
+  if (!synced) return true;
+  const t = Date.parse(synced);
+  if (!Number.isFinite(t)) return true;
+  // Re-sync logros como mucho 1 vez / 7 días
+  return Date.now() - t > 7 * 24 * 60 * 60 * 1000;
 }
 
 export type SteamSyncSuccess = {
@@ -179,7 +210,61 @@ export async function syncSteamLibraryForUser(
           steamName?.trim() ||
           `Steam ${appid}`,
         coverUrl: igdb?.coverUrl || store?.coverUrl || null,
+        genres: mergeUniqueStrings(igdb?.genres, store?.genres),
+        platforms: (() => {
+          const merged = mergeUniqueStrings(igdb?.platforms, store?.platforms);
+          return merged.length > 0 ? merged : ["PC (Steam)"];
+        })(),
+        metacritic: igdb?.metacritic ?? store?.metacritic ?? null,
+        reviewPercent: store?.reviewPercent ?? null,
       };
+    }
+
+    function applyCatalogMeta(
+      patch: Record<string, unknown>,
+      game: UserGame,
+      meta: ReturnType<typeof resolveMeta>,
+    ) {
+      if (isPlaceholderSteamTitle(game.title) || !game.title) {
+        patch.title = meta.title;
+      }
+      if (!game.cover_url && meta.coverUrl) patch.cover_url = meta.coverUrl;
+      if (meta.igdb && !game.rawg_id) patch.rawg_id = meta.igdb.rawgId;
+      if (!(game.developers?.length) && meta.igdb?.developers?.length) {
+        patch.developers = meta.igdb.developers;
+      }
+
+      const nextPlatforms = mergeUniqueStrings(game.platforms, meta.platforms);
+      if (
+        nextPlatforms.length > 0 &&
+        nextPlatforms.join("|") !== (game.platforms ?? []).join("|")
+      ) {
+        patch.platforms = nextPlatforms;
+      }
+
+      const nextGenres = mergeUniqueStrings(game.genres, meta.genres);
+      if (
+        nextGenres.length > 0 &&
+        nextGenres.join("|") !== (game.genres ?? []).join("|")
+      ) {
+        patch.genres = nextGenres;
+      }
+
+      if (game.metacritic == null && meta.metacritic != null) {
+        patch.metacritic = meta.metacritic;
+      }
+      if (
+        (game.steam_review_percent == null ||
+          game.steam_review_percent === undefined) &&
+        meta.reviewPercent != null
+      ) {
+        patch.steam_review_percent = meta.reviewPercent;
+      } else if (
+        meta.reviewPercent != null &&
+        game.steam_review_percent !== meta.reviewPercent
+      ) {
+        patch.steam_review_percent = meta.reviewPercent;
+      }
     }
 
     for (const steamGame of steamGames) {
@@ -241,24 +326,7 @@ export async function syncSteamLibraryForUser(
         if (!existingGame.cover_url && meta.coverUrl) {
           patch.cover_url = meta.coverUrl;
         }
-        if (igdb && !existingGame.rawg_id) patch.rawg_id = igdb.rawgId;
-        if (
-          igdb &&
-          !(existingGame.developers?.length) &&
-          igdb.developers.length
-        ) {
-          patch.developers = igdb.developers;
-        }
-        if (
-          igdb &&
-          !(existingGame.platforms?.length) &&
-          igdb.platforms.length
-        ) {
-          patch.platforms = igdb.platforms;
-        }
-        if (igdb && existingGame.metacritic == null && igdb.metacritic != null) {
-          patch.metacritic = igdb.metacritic;
-        }
+        applyCatalogMeta(patch, existingGame, meta);
 
         const { error } = await supabase
           .from("user_games")
@@ -315,11 +383,13 @@ export async function syncSteamLibraryForUser(
         title: meta.title,
         developers: igdb?.developers ?? [],
         cover_url: meta.coverUrl,
-        platforms: igdb?.platforms?.length ? igdb.platforms : ["PC (Steam)"],
+        platforms: meta.platforms.length ? meta.platforms : ["PC (Steam)"],
+        genres: meta.genres,
         storefronts: ["steam"],
         play_storefront: null as string | null,
         released: igdb?.released ?? null,
-        metacritic: igdb?.metacritic ?? null,
+        metacritic: meta.metacritic,
+        steam_review_percent: meta.reviewPercent,
         status: "owned" as const,
         hours_played: steamHours,
         steam_hours_played: steamHours,
@@ -426,6 +496,7 @@ export async function syncSteamLibraryForUser(
 
       const steamPrices =
         meta.store?.priceEur != null ? { steam: meta.store.priceEur } : {};
+      const addedOn = wishlistDateAddedOn(wish.dateAdded);
 
       const insertRow = {
         user_id: userId,
@@ -434,11 +505,14 @@ export async function syncSteamLibraryForUser(
         title: meta.title,
         developers: igdb?.developers ?? [],
         cover_url: meta.coverUrl,
-        platforms: igdb?.platforms?.length ? igdb.platforms : ["PC (Steam)"],
+        platforms: meta.platforms.length ? meta.platforms : ["PC (Steam)"],
+        genres: meta.genres,
         storefronts: [] as string[],
         play_storefront: null as string | null,
         released: igdb?.released ?? null,
-        metacritic: igdb?.metacritic ?? null,
+        metacritic: meta.metacritic,
+        steam_review_percent: meta.reviewPercent,
+        steam_wishlist_added_at: addedOn,
         status: "wishlist" as const,
         hours_played: 0,
         steam_hours_played: 0,
@@ -470,18 +544,15 @@ export async function syncSteamLibraryForUser(
         isPlaceholderSteamTitle(g.title) ? null : g.title,
       );
       const patch: Record<string, unknown> = {};
-      if (isPlaceholderSteamTitle(g.title)) patch.title = meta.title;
-      if (!g.cover_url && meta.coverUrl) patch.cover_url = meta.coverUrl;
-      if (!g.rawg_id && meta.igdb?.rawgId) patch.rawg_id = meta.igdb.rawgId;
-      if (!(g.developers?.length) && meta.igdb?.developers?.length) {
-        patch.developers = meta.igdb.developers;
-      }
-      if (!(g.platforms?.length) && meta.igdb?.platforms?.length) {
-        patch.platforms = meta.igdb.platforms;
-      }
+      applyCatalogMeta(patch, g, meta);
       if (g.status === "wishlist" || wishlistAppIds.has(g.steam_app_id)) {
         const nextPrices = steamPricePatch(g.steam_app_id, g.prices);
         if (nextPrices) patch.prices = nextPrices;
+        const wish = wishlist.games.find((w) => w.appid === g.steam_app_id);
+        const addedOn = wishlistDateAddedOn(wish?.dateAdded);
+        if (addedOn && !g.steam_wishlist_added_at) {
+          patch.steam_wishlist_added_at = addedOn;
+        }
       }
       if (Object.keys(patch).length === 0) continue;
       const { error } = await supabase
@@ -491,6 +562,43 @@ export async function syncSteamLibraryForUser(
       if (!error) {
         updated += 1;
         bySteamApp.set(g.steam_app_id, { ...g, ...patch } as UserGame);
+      } else if (
+        error.message.includes("genres") ||
+        error.message.includes("steam_review_percent") ||
+        error.message.includes("steam_wishlist_added_at")
+      ) {
+        return {
+          ok: false,
+          status: 500,
+          error:
+            "Falta actualizar Supabase. Ejecuta supabase/migrate-game-steam-meta.sql",
+        };
+      }
+    }
+
+    // Logros Steam (lote pequeño; no bloquea si fallan)
+    const achievementTargets = [...bySteamApp.values()]
+      .filter((g) => needsAchievementRefresh(g) && g.steam_app_id != null)
+      .slice(0, 40);
+
+    for (let i = 0; i < achievementTargets.length; i += 4) {
+      const chunk = achievementTargets.slice(i, i + 4);
+      await Promise.all(
+        chunk.map(async (g) => {
+          const appid = g.steam_app_id!;
+          const summary = await fetchSteamAchievementsSummary(steamId, appid);
+          const patch: Record<string, unknown> = {
+            steam_achievements_synced_at: new Date().toISOString(),
+          };
+          if (summary) {
+            patch.steam_achievements_unlocked = summary.unlocked;
+            patch.steam_achievements_total = summary.total;
+          }
+          await supabase.from("user_games").update(patch).eq("id", g.id);
+        }),
+      );
+      if (i + 4 < achievementTargets.length) {
+        await new Promise((r) => setTimeout(r, 200));
       }
     }
 

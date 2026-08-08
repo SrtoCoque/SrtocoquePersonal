@@ -11,6 +11,7 @@ import {
 } from "@/components/games/game-storefront";
 import type { UserGame } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { formatLastPlayedLabel } from "@/lib/game-last-played";
 
 function resolvePlayStorefront(game: UserGame) {
   if (isGameStorefront(game.play_storefront)) return game.play_storefront;
@@ -22,10 +23,12 @@ export function CurrentlyPlaying({
   games,
   onEdit,
   onAdd,
+  latestHoursByGame,
 }: {
   games: UserGame[];
   onEdit: (game: UserGame) => void;
   onAdd: () => void;
+  latestHoursByGame?: Map<string, string>;
 }) {
   if (games.length === 0) {
     return (
@@ -94,18 +97,31 @@ export function CurrentlyPlaying({
                 <h2 className="mt-0.5 line-clamp-2 font-[family-name:var(--font-display)] text-base font-semibold leading-snug tracking-tight sm:text-lg">
                   {game.title}
                 </h2>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                  {playSf ? (
-                    <span title={GAME_STOREFRONT_LABELS[playSf]}>
-                      <GameStorefrontIcon
-                        storefront={playSf}
-                        className="h-3.5 w-3.5"
-                      />
+                <p className="mt-1 flex flex-col gap-0.5 text-sm text-[var(--muted)]">
+                  <span className="inline-flex items-center gap-1.5">
+                    {playSf ? (
+                      <span title={GAME_STOREFRONT_LABELS[playSf]}>
+                        <GameStorefrontIcon
+                          storefront={playSf}
+                          className="h-3.5 w-3.5"
+                        />
+                      </span>
+                    ) : null}
+                    {Number(game.hours_played) > 0
+                      ? `${Number(game.hours_played)} horas jugadas`
+                      : "Sin horas registradas"}
+                  </span>
+                  {formatLastPlayedLabel(
+                    game,
+                    latestHoursByGame?.get(game.id),
+                  ) ? (
+                    <span className="text-xs">
+                      {formatLastPlayedLabel(
+                        game,
+                        latestHoursByGame?.get(game.id),
+                      )}
                     </span>
                   ) : null}
-                  {Number(game.hours_played) > 0
-                    ? `${Number(game.hours_played)} horas jugadas`
-                    : "Sin horas registradas"}
                 </p>
               </div>
             </button>

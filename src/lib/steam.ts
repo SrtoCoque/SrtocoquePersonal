@@ -163,12 +163,56 @@ export type SteamStoreDetails = {
   coverUrl: string | null;
   /** Precio actual en Steam (€), null si gratis / no disponible */
   priceEur: number | null;
+  genres: string[];
+  platforms: string[];
+  metacritic: number | null;
+  reviewPercent: number | null;
 };
 
-/** Metadatos básicos de la tienda Steam (nombre + portada + precio). */
+function mapSteamPlatforms(data: {
+  platforms?: { windows?: boolean; mac?: boolean; linux?: boolean };
+}): string[] {
+  const out: string[] = [];
+  if (data.platforms?.windows) out.push("PC (Steam)");
+  if (data.platforms?.mac) out.push("Mac");
+  if (data.platforms?.linux) out.push("Linux");
+  return out;
+}
+
+async function fetchSteamReviewPercent(
+  appid: number,
+): Promise<number | null> {
+  try {
+    const url = new URL(
+      `https://store.steampowered.com/appreviews/${appid}`,
+    );
+    url.searchParams.set("json", "1");
+    url.searchParams.set("language", "all");
+    url.searchParams.set("purchase_type", "all");
+    url.searchParams.set("num_per_page", "0");
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      query_summary?: {
+        total_positive?: number;
+        total_reviews?: number;
+      };
+    };
+    const pos = Number(data.query_summary?.total_positive) || 0;
+    const total = Number(data.query_summary?.total_reviews) || 0;
+    if (total <= 0) return null;
+    return Math.round((pos / total) * 100);
+  } catch {
+    return null;
+  }
+}
+
+/** Metadatos de la tienda Steam (nombre, portada, precio, géneros, metacritic, % reviews). */
 export async function fetchSteamStoreDetails(
   steamAppIds: number[],
+  options?: { includeReviews?: boolean },
 ): Promise<Map<number, SteamStoreDetails>> {
+  const includeReviews = options?.includeReviews !== false;
   const result = new Map<number, SteamStoreDetails>();
   const unique = [
     ...new Set(steamAppIds.filter((id) => Number.isFinite(id) && id > 0)),
@@ -201,6 +245,13 @@ export async function fetchSteamStoreDetails(
                   initial?: number;
                   currency?: string;
                 };
+                genres?: Array<{ description?: string }>;
+                platforms?: {
+                  windows?: boolean;
+                  mac?: boolean;
+                  linux?: boolean;
+                };
+                metacritic?: { score?: number };
               };
             }
           >;
@@ -219,6 +270,20 @@ export async function fetchSteamStoreDetails(
               100;
           }
 
+          const genres = (entry.data.genres ?? [])
+            .map((g) => g.description?.trim())
+            .filter((g): g is string => Boolean(g));
+
+          const metacritic =
+            entry.data.metacritic?.score != null &&
+            Number.isFinite(entry.data.metacritic.score)
+              ? Math.round(Number(entry.data.metacritic.score))
+              : null;
+
+          const reviewPercent = includeReviews
+            ? await fetchSteamReviewPercent(appid)
+            : null;
+
           result.set(appid, {
             appid,
             name: entry.data.name.trim(),
@@ -227,6 +292,10 @@ export async function fetchSteamStoreDetails(
               entry.data.capsule_image?.trim() ||
               null,
             priceEur,
+            genres,
+            platforms: mapSteamPlatforms(entry.data),
+            metacritic,
+            reviewPercent,
           });
         } catch {
           /* ignore single failures */
@@ -239,6 +308,47 @@ export async function fetchSteamStoreDetails(
   }
 
   return result;
+}
+
+export type SteamAchievementsSummary = {
+  unlocked: number;
+  total: number;
+};
+
+/** Resumen de logros del jugador en un appid. null si privados / error. */
+export async function fetchSteamAchievementsSummary(
+  steamId64: string,
+  appid: number,
+): Promise<SteamAchievementsSummary | null> {
+  try {
+    const key = steamApiKey();
+    const url = new URL(
+      "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/",
+    );
+    url.searchParams.set("key", key);
+    url.searchParams.set("steamid", steamId64);
+    url.searchParams.set("appid", String(appid));
+    url.searchParams.set("l", "spanish");
+
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      playerstats?: {
+        success?: boolean;
+        achievements?: Array<{ achieved?: number }>;
+      };
+    };
+    if (!data.playerstats?.success || !data.playerstats.achievements) {
+      return null;
+    }
+    const list = data.playerstats.achievements;
+    const total = list.length;
+    if (total === 0) return null;
+    const unlocked = list.filter((a) => Number(a.achieved) === 1).length;
+    return { unlocked, total };
+  } catch {
+    return null;
+  }
 }
 
 export function isPlaceholderSteamTitle(title: string | null | undefined): boolean {
@@ -255,6 +365,8 @@ export type SteamWishlistGame = {
   appid: number;
   name: string | null;
   priority: number | null;
+  /** Unix seconds cuando se añadió a la wishlist */
+  dateAdded: number | null;
 };
 
 export type SteamWishlistResult = {
@@ -262,6 +374,14 @@ export type SteamWishlistResult = {
   /** true si no se pudo leer (privada / error) */
   unavailable: boolean;
 };
+
+function wishlistDateAddedOn(
+  unixSeconds: number | null | undefined,
+): string | null {
+  return steamLastPlayedOn(unixSeconds);
+}
+
+export { wishlistDateAddedOn };
 
 /**
  * Wishlist pública del usuario.
@@ -302,6 +422,12 @@ export async function fetchSteamWishlist(
             priority:
               item.priority != null && Number.isFinite(item.priority)
                 ? Number(item.priority)
+                : null,
+            dateAdded:
+              item.date_added != null &&
+              Number.isFinite(Number(item.date_added)) &&
+              Number(item.date_added) > 0
+                ? Number(item.date_added)
                 : null,
           }))
           .filter((g) => Number.isFinite(g.appid) && g.appid > 0),
@@ -359,14 +485,26 @@ export async function fetchSteamWishlist(
         if (!Number.isFinite(appid) || appid <= 0) continue;
         const row =
           info && typeof info === "object"
-            ? (info as { name?: string; priority?: number })
+            ? (info as {
+                name?: string;
+                priority?: number;
+                added?: number;
+                date_added?: number;
+              })
             : {};
+        const addedRaw = row.added ?? row.date_added;
         games.push({
           appid,
           name: typeof row.name === "string" ? row.name : null,
           priority:
             row.priority != null && Number.isFinite(Number(row.priority))
               ? Number(row.priority)
+              : null,
+          dateAdded:
+            addedRaw != null &&
+            Number.isFinite(Number(addedRaw)) &&
+            Number(addedRaw) > 0
+              ? Number(addedRaw)
               : null,
         });
       }

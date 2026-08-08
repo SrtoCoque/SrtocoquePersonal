@@ -13,6 +13,7 @@ export function GameSection({
   onSeeMore,
   onEdit,
   emptyLabel,
+  latestHoursByGame,
 }: {
   title: string;
   subtitle?: string;
@@ -21,6 +22,7 @@ export function GameSection({
   onSeeMore: () => void;
   onEdit: (game: UserGame) => void;
   emptyLabel: string;
+  latestHoursByGame?: Map<string, string>;
 }) {
   void _subtitle;
   const visible = games.slice(0, limit);
@@ -56,7 +58,12 @@ export function GameSection({
       ) : (
         <MediaScrollRow>
           {visible.map((game) => (
-            <GameCard key={game.id} game={game} onEdit={onEdit} />
+            <GameCard
+              key={game.id}
+              game={game}
+              onEdit={onEdit}
+              latestHourPlayedOn={latestHoursByGame?.get(game.id)}
+            />
           ))}
         </MediaScrollRow>
       )}

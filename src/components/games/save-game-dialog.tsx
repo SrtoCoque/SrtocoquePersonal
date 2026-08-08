@@ -115,6 +115,7 @@ export function SaveGameDialog({
         developers: game.developers,
         cover_url: game.coverUrl,
         platforms: game.platforms,
+        genres: game.genres ?? [],
         storefronts: destination === "shelf" ? storefronts : [],
         play_storefront: needsPlay ? resolvedPlay : null,
         released: game.released,

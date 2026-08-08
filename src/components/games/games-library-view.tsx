@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 type FilterMode = "status" | "platform";
 type StatusFilter = "all" | "shelf" | GameStatus;
 type PlatformFilter = "all" | GameStorefront;
+type WishlistSort = "price" | "added";
 
 /** Precio para ordenar wishlist; sin precio → Infinity (al final). */
 function wishlistSortPrice(game: UserGame): number {
@@ -48,6 +49,23 @@ function sortWishlistByPrice(list: UserGame[]): UserGame[] {
     if (diff !== 0) return diff;
     return a.title.localeCompare(b.title, "es");
   });
+}
+
+function sortWishlistByAdded(list: UserGame[]): UserGame[] {
+  return [...list].sort((a, b) => {
+    const aDay = a.steam_wishlist_added_at?.slice(0, 10) ?? "";
+    const bDay = b.steam_wishlist_added_at?.slice(0, 10) ?? "";
+    if (aDay && bDay && aDay !== bDay) return bDay.localeCompare(aDay);
+    if (aDay && !bDay) return -1;
+    if (!aDay && bDay) return 1;
+    return a.title.localeCompare(b.title, "es");
+  });
+}
+
+function sortWishlist(list: UserGame[], sort: WishlistSort): UserGame[] {
+  return sort === "added"
+    ? sortWishlistByAdded(list)
+    : sortWishlistByPrice(list);
 }
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
@@ -83,6 +101,10 @@ function parsePlatformFilter(raw: string | null): PlatformFilter {
   return "all";
 }
 
+function parseWishlistSort(raw: string | null): WishlistSort {
+  return raw === "added" ? "added" : "price";
+}
+
 export function GamesLibraryView({
   userId,
   email,
@@ -106,6 +128,12 @@ export function GamesLibraryView({
   );
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>(() =>
     parsePlatformFilter(searchParams.get("platform")),
+  );
+  const [wishlistSort, setWishlistSort] = useState<WishlistSort>(() =>
+    parseWishlistSort(searchParams.get("wishlistSort")),
+  );
+  const [genreFilter, setGenreFilter] = useState<string | "all">(() =>
+    searchParams.get("genre")?.trim() || "all",
   );
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<UserGame | null>(null);
@@ -151,19 +179,27 @@ export function GamesLibraryView({
     setMode(parseMode(searchParams.get("by")));
     setStatusFilter(parseStatusFilter(searchParams.get("filter")));
     setPlatformFilter(parsePlatformFilter(searchParams.get("platform")));
+    setWishlistSort(parseWishlistSort(searchParams.get("wishlistSort")));
+    setGenreFilter(searchParams.get("genre")?.trim() || "all");
   }, [searchParams]);
 
   function writeUrl(next: {
     mode?: FilterMode;
     status?: StatusFilter;
     platform?: PlatformFilter;
+    wishlistSort?: WishlistSort;
+    genre?: string | "all";
   }) {
     const nextMode = next.mode ?? mode;
     const nextStatus = next.status ?? statusFilter;
     const nextPlatform = next.platform ?? platformFilter;
+    const nextWishlistSort = next.wishlistSort ?? wishlistSort;
+    const nextGenre = next.genre ?? genreFilter;
     setMode(nextMode);
     setStatusFilter(nextStatus);
     setPlatformFilter(nextPlatform);
+    setWishlistSort(nextWishlistSort);
+    setGenreFilter(nextGenre);
 
     const params = new URLSearchParams();
     if (nextMode === "platform") {
@@ -171,7 +207,11 @@ export function GamesLibraryView({
       if (nextPlatform !== "all") params.set("platform", nextPlatform);
     } else {
       if (nextStatus !== "all") params.set("filter", nextStatus);
+      if (nextStatus === "wishlist" && nextWishlistSort !== "price") {
+        params.set("wishlistSort", nextWishlistSort);
+      }
     }
+    if (nextGenre !== "all") params.set("genre", nextGenre);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
@@ -198,35 +238,65 @@ export function GamesLibraryView({
     return list.sort((a, b) => compareByLastPlayed(a, b, latestHoursByGame));
   }, [games, latestHoursByGame]);
   const wishlistGames = useMemo(
-    () => sortWishlistByPrice(games.filter((g) => g.status === "wishlist")),
-    [games],
+    () =>
+      sortWishlist(
+        games.filter((g) => g.status === "wishlist"),
+        wishlistSort,
+      ),
+    [games, wishlistSort],
   );
   const shelfGames = useMemo(
     () => games.filter((g) => isGameOnShelf(g.status)),
     [games],
   );
 
+  const availableGenres = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const g of games) {
+      for (const raw of g.genres ?? []) {
+        const name = raw.trim();
+        if (!name) continue;
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"))
+      .map(([name]) => name);
+  }, [games]);
+
   const filtered = useMemo(() => {
+    let list: UserGame[];
     if (mode === "platform") {
-      if (platformFilter === "all") return games;
-      return games.filter((g) =>
-        normalizeStorefronts(g.storefronts).includes(platformFilter),
-      );
-    }
-    if (statusFilter === "all") return games;
-    if (statusFilter === "shelf") {
-      return games.filter((g) => isGameOnShelf(g.status));
-    }
-    if (statusFilter === "playing") {
-      return games.filter((g) => g.status === "playing");
-    }
-    if (statusFilter === "wishlist") {
-      return sortWishlistByPrice(
+      list =
+        platformFilter === "all"
+          ? games
+          : games.filter((g) =>
+              normalizeStorefronts(g.storefronts).includes(platformFilter),
+            );
+    } else if (statusFilter === "all") {
+      list = games;
+    } else if (statusFilter === "shelf") {
+      list = games.filter((g) => isGameOnShelf(g.status));
+    } else if (statusFilter === "playing") {
+      list = games.filter((g) => g.status === "playing");
+    } else if (statusFilter === "wishlist") {
+      list = sortWishlist(
         games.filter((g) => g.status === "wishlist"),
+        wishlistSort,
+      );
+    } else {
+      list = games.filter((g) => g.status === statusFilter);
+    }
+
+    if (genreFilter !== "all") {
+      list = list.filter((g) =>
+        (g.genres ?? []).some(
+          (x) => x.trim().toLowerCase() === genreFilter.toLowerCase(),
+        ),
       );
     }
-    return games.filter((g) => g.status === statusFilter);
-  }, [games, mode, statusFilter, platformFilter]);
+    return list;
+  }, [games, mode, statusFilter, platformFilter, wishlistSort, genreFilter]);
 
   const showHome =
     mode === "status" && statusFilter === "all" && !loading;
@@ -342,6 +412,65 @@ export function GamesLibraryView({
               ))}
             </div>
           )}
+
+          {availableGenres.length > 0 ? (
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-1">
+              <button
+                type="button"
+                onClick={() => writeUrl({ genre: "all" })}
+                className={cn(
+                  "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                  genreFilter === "all"
+                    ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                )}
+              >
+                Todos los géneros
+              </button>
+              {availableGenres.slice(0, 24).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => writeUrl({ genre: g })}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    genreFilter === g
+                      ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {(statusFilter === "wishlist" ||
+            (showHome && wishlistGames.length > 0)) &&
+          mode === "status" ? (
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 p-1">
+              {(
+                [
+                  { id: "price" as const, label: "Por precio" },
+                  { id: "added" as const, label: "Por añadido" },
+                ] as const
+              ).map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => writeUrl({ wishlistSort: s.id })}
+                  className={cn(
+                    "shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                    wishlistSort === s.id
+                      ? "bg-[var(--surface-2)] font-medium text-[var(--foreground)]"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {loading ? (
@@ -366,6 +495,7 @@ export function GamesLibraryView({
                 games={playingGames}
                 onEdit={setEditing}
                 onAdd={() => setAddOpen(true)}
+                latestHoursByGame={latestHoursByGame}
               />
               <GameSection
                 title="Wishlist"
@@ -374,6 +504,7 @@ export function GamesLibraryView({
                 onSeeMore={() => writeUrl({ status: "wishlist" })}
                 onEdit={setEditing}
                 emptyLabel="Tu wishlist está vacía."
+                latestHoursByGame={latestHoursByGame}
               />
               <GameSection
                 title="Biblioteca"
@@ -382,6 +513,7 @@ export function GamesLibraryView({
                 onSeeMore={() => writeUrl({ status: "shelf" })}
                 onEdit={setEditing}
                 emptyLabel="Aún no has añadido juegos a tu biblioteca."
+                latestHoursByGame={latestHoursByGame}
               />
             </div>
           )
@@ -408,7 +540,12 @@ export function GamesLibraryView({
           <div className="animate-fade-in">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
               {filtered.map((game) => (
-                <GameCard key={game.id} game={game} onEdit={setEditing} />
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  onEdit={setEditing}
+                  latestHourPlayedOn={latestHoursByGame.get(game.id)}
+                />
               ))}
             </div>
           </div>
@@ -441,6 +578,9 @@ export function GamesLibraryView({
         }}
         onSaved={loadGames}
         onDeleted={loadGames}
+        latestHourPlayedOn={
+          editing ? latestHoursByGame.get(editing.id) : null
+        }
       />
     </div>
   );

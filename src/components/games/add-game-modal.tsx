@@ -166,6 +166,7 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
         developers: selected.developers,
         cover_url: selected.coverUrl,
         platforms: selected.platforms,
+        genres: selected.genres ?? [],
         storefronts: destination === "shelf" ? storefronts : [],
         play_storefront: needsPlay ? resolvedPlay : null,
         released: selected.released,

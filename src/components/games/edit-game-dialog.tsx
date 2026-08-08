@@ -41,6 +41,7 @@ import {
   insertHourLogIfIncreased,
   todayPlayedOn,
 } from "@/lib/game-hour-logs";
+import { lastPlayedOnDate } from "@/lib/game-last-played";
 
 type Props = {
   game: UserGame | null;
@@ -48,6 +49,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   onDeleted: () => void;
+  latestHourPlayedOn?: string | null;
 };
 
 function pickPlayStorefront(
@@ -70,6 +72,7 @@ export function EditGameDialog({
   onOpenChange,
   onSaved,
   onDeleted,
+  latestHourPlayedOn,
 }: Props) {
   const [status, setStatus] = useState<GameStatus>("wishlist");
   const [storefronts, setStorefronts] = useState<GameStorefront[]>([]);
@@ -185,6 +188,7 @@ export function EditGameDialog({
 
   function selectStatus(next: GameStatus) {
     const today = todayISO();
+    const hadStartDate = Boolean(game?.start_date);
 
     if (next === "playing" && status === "completed") {
       setStartDate(today);
@@ -200,6 +204,14 @@ export function EditGameDialog({
     if (next === "playing" && next !== status) {
       setDropFinishReady(false);
       setFinishDate("");
+      if (!hadStartDate) {
+        const hours = Number(game?.hours_played) || 0;
+        const last =
+          hours > 0
+            ? lastPlayedOnDate(game!, latestHourPlayedOn)
+            : null;
+        setStartDate(last || today);
+      }
     }
     if (next === "completed") {
       setFinishDate((prev) => prev || today);
@@ -522,41 +534,50 @@ export function EditGameDialog({
                         game.platforms.slice(0, 2).join(", ") ||
                         "—"}
                     </p>
-                    {status !== "wishlist" && !fromWishlist ? (
-                      <>
-                        {!editingStorefronts ? (
-                          <GameStorefrontChips
-                            owned={storefronts}
-                            available={availableStorefronts}
-                            prices={prices}
-                            onClick={() => setEditingStorefronts(true)}
-                          />
-                        ) : (
-                          <div className="mt-2 space-y-3 rounded-xl border border-[var(--border)] p-2.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium">
-                                Tiendas y precios
-                              </p>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => setEditingStorefronts(false)}
-                              >
-                                Listo
-                              </Button>
-                            </div>
-                            <GameStorefrontPicker
-                              value={storefronts}
-                              onChange={applyStorefronts}
-                              required
-                            />
-                            {storefrontPriceFields}
-                          </div>
-                        )}
-                      </>
-                    ) : null}
+                    {status === "wishlist" || fromWishlist ? (
+                      status === "wishlist" ? (
+                        <GameStorefrontChips
+                          owned={
+                            normalizeGamePrices(game.prices).steam != null ||
+                            game.steam_app_id != null
+                              ? (["steam"] as GameStorefront[])
+                              : []
+                          }
+                          available={availableStorefronts}
+                          prices={prices}
+                        />
+                      ) : null
+                    ) : !editingStorefronts ? (
+                      <GameStorefrontChips
+                        owned={storefronts}
+                        available={availableStorefronts}
+                        prices={prices}
+                        onClick={() => setEditingStorefronts(true)}
+                      />
+                    ) : (
+                      <div className="mt-2 space-y-3 rounded-xl border border-[var(--border)] p-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium">
+                            Tiendas y precios
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setEditingStorefronts(false)}
+                          >
+                            Listo
+                          </Button>
+                        </div>
+                        <GameStorefrontPicker
+                          value={storefronts}
+                          onChange={applyStorefronts}
+                          required
+                        />
+                        {storefrontPriceFields}
+                      </div>
+                    )}
                   </div>
                   <Button
                     type="button"
@@ -691,7 +712,16 @@ export function EditGameDialog({
                     )}
                   >
                     <div className="space-y-2">
-                      <Label htmlFor="game-start">Inicio</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="game-start">Inicio</Label>
+                        <button
+                          type="button"
+                          onClick={() => setStartDate(todayISO())}
+                          className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                        >
+                          Hoy
+                        </button>
+                      </div>
                       <Input
                         id="game-start"
                         type="date"

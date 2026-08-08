@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS user_games (
   storefronts game_storefront[] NOT NULL DEFAULT '{}',
   released DATE,
   metacritic INTEGER,
+  genres TEXT[] NOT NULL DEFAULT '{}',
   status game_status NOT NULL DEFAULT 'wishlist',
   hours_played NUMERIC NOT NULL DEFAULT 0 CHECK (hours_played >= 0),
   prices JSONB NOT NULL DEFAULT '{}'::jsonb,
