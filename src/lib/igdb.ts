@@ -228,3 +228,56 @@ limit ${limit};
     .slice(0, maxResults)
     .map(({ _score: _, ...game }) => game);
 }
+
+/** IGDB external_games category 1 = Steam */
+const IGDB_STEAM_CATEGORY = 1;
+
+type IgdbExternalGame = {
+  uid?: string;
+  game?: IgdbGame;
+};
+
+/**
+ * Resuelve Steam AppIDs → metadatos IGDB.
+ * Devuelve Map<steamAppId, RawgGameResult>.
+ */
+export async function fetchIgdbGamesBySteamAppIds(
+  steamAppIds: number[],
+): Promise<Map<number, RawgGameResult>> {
+  const result = new Map<number, RawgGameResult>();
+  const unique = [...new Set(steamAppIds.filter((id) => Number.isFinite(id)))];
+  if (unique.length === 0) return result;
+
+  const chunkSize = 40;
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const uids = chunk.map((id) => `"${id}"`).join(",");
+    const rows = await igdbQuery<IgdbExternalGame>(
+      "external_games",
+      `
+fields uid,
+  game.id, game.name, game.summary, game.first_release_date,
+  game.aggregated_rating, game.aggregated_rating_count,
+  game.rating, game.rating_count, game.total_rating, game.total_rating_count,
+  game.cover.image_id, game.platforms.name, game.genres.name,
+  game.involved_companies.developer, game.involved_companies.company.name;
+where category = ${IGDB_STEAM_CATEGORY} & uid = (${uids});
+limit ${chunk.length};
+`.trim(),
+    );
+
+    for (const row of rows) {
+      const steamId = Number(row.uid);
+      if (!Number.isFinite(steamId) || !row.game?.id) continue;
+      const mapped = mapGame(row.game);
+      const { _score: _, ...game } = mapped;
+      result.set(steamId, game);
+    }
+
+    if (i + chunkSize < unique.length) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  return result;
+}

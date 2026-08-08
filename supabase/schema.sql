@@ -21,8 +21,16 @@ END $$;
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   email TEXT,
+  steam_id TEXT,
+  steam_synced_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS steam_id TEXT;
+
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS steam_synced_at TIMESTAMPTZ;
 
 -- 3. Biblioteca personal
 CREATE TABLE IF NOT EXISTS user_books (

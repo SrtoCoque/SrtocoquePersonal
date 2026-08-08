@@ -45,6 +45,9 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
   const [destination, setDestination] = useState<GameDestination | null>(null);
   const [shelfStatus, setShelfStatus] = useState<GameShelfStatus>("owned");
   const [storefronts, setStorefronts] = useState<GameStorefront[]>([]);
+  const [playStorefront, setPlayStorefront] = useState<GameStorefront | null>(
+    null,
+  );
   const [prices, setPrices] = useState<GamePricesDraft>({});
   const [hoursPlayed, setHoursPlayed] = useState<number | "">("");
   const [startDate, setStartDate] = useState(
@@ -63,6 +66,7 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
     setDestination(null);
     setShelfStatus("owned");
     setStorefronts([]);
+    setPlayStorefront(null);
     setPrices({});
     setHoursPlayed("");
     setStartDate(new Date().toISOString().slice(0, 10));
@@ -126,10 +130,22 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       setError("Elige al menos una tienda (Steam, PlayStation…)");
       return;
     }
+
+    const status = gameDestinationToStatus(destination, shelfStatus);
+    const needsPlay = status === "playing" || status === "completed";
+    const resolvedPlay =
+      storefronts.length === 1
+        ? storefronts[0]
+        : playStorefront && storefronts.includes(playStorefront)
+          ? playStorefront
+          : null;
+    if (needsPlay && storefronts.length > 1 && !resolvedPlay) {
+      setError("Elige desde qué tienda estás jugando");
+      return;
+    }
     setSaving(true);
     setError(null);
 
-    const status = gameDestinationToStatus(destination, shelfStatus);
     const supabase = createClient();
     const { error: insertError } = await supabase.from("user_games").insert({
       user_id: userId,
@@ -139,6 +155,7 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       cover_url: selected.coverUrl,
       platforms: selected.platforms,
       storefronts: destination === "shelf" ? storefronts : [],
+      play_storefront: needsPlay ? resolvedPlay : null,
       released: selected.released,
       metacritic: selected.metacritic,
       status,
@@ -157,7 +174,9 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
     setSaving(false);
     if (insertError) {
       setError(
-        insertError.message.includes("storefront")
+        insertError.message.includes("play_storefront")
+          ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
+          : insertError.message.includes("storefront")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
           : insertError.message.includes("prices")
             ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-by-storefront.sql"
@@ -291,6 +310,8 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
               onShelfStatusChange={setShelfStatus}
               storefronts={storefronts}
               onStorefrontsChange={setStorefronts}
+              playStorefront={playStorefront}
+              onPlayStorefrontChange={setPlayStorefront}
               prices={prices}
               onPricesChange={setPrices}
               hoursPlayed={hoursPlayed}

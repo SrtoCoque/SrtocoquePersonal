@@ -28,9 +28,14 @@ import { cn } from "@/lib/utils";
 import { submitFormOnEnter } from "@/lib/submit-form-on-enter";
 import {
   GAME_STOREFRONT_LABELS,
+  GamePlayStorefrontPicker,
+  GameStorefrontChips,
   GameStorefrontIcon,
   GameStorefrontPicker,
+  GameStorefrontPricesLine,
+  isGameStorefront,
   normalizeStorefronts,
+  storefrontsFromPlatformNames,
   type GameStorefront,
 } from "@/components/games/game-storefront";
 import {
@@ -54,6 +59,7 @@ type PlaythroughDraft = {
   finish_date: string;
   hours_played: number;
   rating: number | "";
+  storefront: GameStorefront | null;
 };
 
 type PendingArchive = {
@@ -61,7 +67,18 @@ type PendingArchive = {
   finish_date: string | null;
   hours_played: number;
   rating: number | null;
+  storefront: GameStorefront | null;
 };
+
+function pickPlayStorefront(
+  list: GameStorefront[],
+  preferred: GameStorefront | null | undefined,
+): GameStorefront | null {
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  if (preferred && list.includes(preferred)) return preferred;
+  return null;
+}
 
 function formatDay(iso: string | null): string {
   if (!iso) return "—";
@@ -84,6 +101,9 @@ export function EditGameDialog({
 }: Props) {
   const [status, setStatus] = useState<GameStatus>("wishlist");
   const [storefronts, setStorefronts] = useState<GameStorefront[]>([]);
+  const [playStorefront, setPlayStorefront] = useState<GameStorefront | null>(
+    null,
+  );
   const [prices, setPrices] = useState<GamePricesDraft>({});
   const [hoursPlayed, setHoursPlayed] = useState(0);
   const [startDate, setStartDate] = useState("");
@@ -106,12 +126,15 @@ export function EditGameDialog({
     finish_date: "",
     hours_played: 0,
     rating: "",
+    storefront: null,
   });
   const [saving, setSaving] = useState(false);
   const [finishingReplay, setFinishingReplay] = useState(false);
   const [replayFinishReady, setReplayFinishReady] = useState(false);
   const [dropFinishReady, setDropFinishReady] = useState(false);
   const [showAllStatuses, setShowAllStatuses] = useState(false);
+  const [editingStorefronts, setEditingStorefronts] = useState(false);
+  const [editingPrices, setEditingPrices] = useState(false);
   const [savingPlaythrough, setSavingPlaythrough] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -121,7 +144,16 @@ export function EditGameDialog({
     if (!game || !open) return;
     const today = todayISO();
     setStatus(game.status);
-    setStorefronts(normalizeStorefronts(game.storefronts));
+    const nextStorefronts = normalizeStorefronts(game.storefronts);
+    setStorefronts(nextStorefronts);
+    setPlayStorefront(
+      pickPlayStorefront(
+        nextStorefronts,
+        isGameStorefront(game.play_storefront)
+          ? game.play_storefront
+          : null,
+      ),
+    );
     setPrices(pricesToDraft(normalizeGamePrices(game.prices)));
     setHoursPlayed(Number(game.hours_played) || 0);
     setStartDate(game.start_date ?? today);
@@ -144,6 +176,8 @@ export function EditGameDialog({
     setPendingArchive(null);
     setAddingPlaythrough(false);
     setShowAllStatuses(false);
+    setEditingStorefronts(false);
+    setEditingPrices(false);
     setError(null);
 
     void (async () => {
@@ -192,6 +226,7 @@ export function EditGameDialog({
         finish_date: finishDate || game?.finish_date || null,
         hours_played: hoursPlayed || Number(game?.hours_played) || 0,
         rating: rating === "" ? (game?.rating ?? null) : rating,
+        storefront: playStorefront,
       });
       setStartDate(today);
       setHoursPlayed(0);
@@ -232,6 +267,7 @@ export function EditGameDialog({
       finish_date: p.finish_date?.slice(0, 10) ?? "",
       hours_played: Number(p.hours_played) || 0,
       rating: p.rating ?? "",
+      storefront: isGameStorefront(p.storefront) ? p.storefront : null,
     });
     setError(null);
   }
@@ -254,6 +290,10 @@ export function EditGameDialog({
         hours_played: playthroughDraft.hours_played,
         rating:
           playthroughDraft.rating === "" ? null : playthroughDraft.rating,
+        storefront: pickPlayStorefront(
+          storefronts,
+          playthroughDraft.storefront,
+        ),
       })
       .eq("id", editingPlaythroughId)
       .select("*")
@@ -282,6 +322,7 @@ export function EditGameDialog({
       finish_date: string | null;
       hours_played: number;
       rating: number | null;
+      storefront?: GameStorefront | null;
     },
   ) {
     return supabase
@@ -290,6 +331,7 @@ export function EditGameDialog({
         user_game_id: current.id,
         user_id: current.user_id,
         kind,
+        storefront: values.storefront ?? playStorefront,
         start_date: values.start_date || null,
         finish_date: values.finish_date || todayISO(),
         hours_played: values.hours_played,
@@ -320,6 +362,11 @@ export function EditGameDialog({
       setError("Elige al menos una tienda (Steam, PlayStation…)");
       return;
     }
+    const resolvedPlay = pickPlayStorefront(storefronts, playStorefront);
+    if (storefronts.length > 1 && !resolvedPlay) {
+      setError("Elige desde qué tienda estás jugando");
+      return;
+    }
     setFinishingReplay(true);
     setError(null);
     const supabase = createClient();
@@ -348,13 +395,16 @@ export function EditGameDialog({
       finish_date: finish,
       hours_played: hoursPlayed,
       rating: rating === "" ? null : rating,
+      storefront: resolvedPlay,
     });
     if (replayError) {
       setFinishingReplay(false);
       setError(
         replayError.message.includes("user_game_playthroughs")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-playthroughs.sql"
-          : replayError.message,
+          : replayError.message.includes("storefront")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
+            : replayError.message,
       );
       return;
     }
@@ -364,6 +414,7 @@ export function EditGameDialog({
       .update({
         status: "completed",
         storefronts,
+        play_storefront: resolvedPlay,
         hours_played: hoursPlayed,
         prices: pricesDraftToDb(prices, storefronts),
         start_date: startDate || null,
@@ -374,7 +425,11 @@ export function EditGameDialog({
 
     setFinishingReplay(false);
     if (updateError) {
-      setError(updateError.message);
+      setError(
+        updateError.message.includes("play_storefront")
+          ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
+          : updateError.message,
+      );
       return;
     }
     onOpenChange(false);
@@ -385,6 +440,18 @@ export function EditGameDialog({
     if (!game) return;
     if (status !== "wishlist" && storefronts.length === 0) {
       setError("Elige al menos una tienda (Steam, PlayStation…)");
+      return;
+    }
+
+    const needsPlayStorefront =
+      status === "playing" ||
+      status === "replaying" ||
+      status === "completed" ||
+      status === "dropped" ||
+      dropFinishReady;
+    const resolvedPlay = pickPlayStorefront(storefronts, playStorefront);
+    if (needsPlayStorefront && storefronts.length > 1 && !resolvedPlay) {
+      setError("Elige desde qué tienda estás jugando");
       return;
     }
 
@@ -411,6 +478,7 @@ export function EditGameDialog({
               finish_date: game.finish_date,
               hours_played: Number(game.hours_played) || 0,
               rating: game.rating,
+              storefront: resolvedPlay,
             }
           : null);
       if (snapshot) {
@@ -438,6 +506,7 @@ export function EditGameDialog({
         finish_date: finishDate || today,
         hours_played: hoursPlayed,
         rating: rating === "" ? null : rating,
+        storefront: resolvedPlay,
       });
       if (archiveError) {
         setSaving(false);
@@ -473,6 +542,7 @@ export function EditGameDialog({
           finish_date: finishDate || today,
           hours_played: hoursPlayed,
           rating: rating === "" ? null : rating,
+          storefront: resolvedPlay,
         },
       );
       if (replayError) {
@@ -501,6 +571,8 @@ export function EditGameDialog({
       .update({
         status: statusToSave,
         storefronts: statusToSave === "wishlist" ? [] : storefronts,
+        play_storefront:
+          statusToSave === "wishlist" || !activeRun ? null : resolvedPlay,
         hours_played: activeRun ? hoursPlayed : 0,
         prices:
           statusToSave === "wishlist"
@@ -522,6 +594,8 @@ export function EditGameDialog({
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-dropped.sql"
           : updateError.message.includes("replaying")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-playthroughs.sql"
+          : updateError.message.includes("play_storefront")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
           : updateError.message.includes("storefront")
             ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
             : updateError.message.includes("prices")
@@ -541,6 +615,14 @@ export function EditGameDialog({
       setError("Indica al menos la fecha de finalización");
       return;
     }
+    const ptStorefront = pickPlayStorefront(
+      storefronts,
+      newPlaythrough.storefront,
+    );
+    if (storefronts.length > 1 && !ptStorefront) {
+      setError("Elige la tienda de esta partida");
+      return;
+    }
     setSavingPlaythrough(true);
     setError(null);
     const supabase = createClient();
@@ -553,6 +635,7 @@ export function EditGameDialog({
         finish_date: newPlaythrough.finish_date,
         hours_played: newPlaythrough.hours_played,
         rating: newPlaythrough.rating === "" ? null : newPlaythrough.rating,
+        storefront: ptStorefront,
       },
     );
     setSavingPlaythrough(false);
@@ -573,6 +656,7 @@ export function EditGameDialog({
       finish_date: "",
       hours_played: 0,
       rating: "",
+      storefront: pickPlayStorefront(storefronts, playStorefront),
     });
   }
 
@@ -614,7 +698,14 @@ export function EditGameDialog({
     onDeleted();
   }
 
+  const availableStorefronts = useMemo(
+    () => storefrontsFromPlatformNames(game?.platforms),
+    [game?.platforms],
+  );
+
   if (!game) return null;
+
+  const currentGame = game;
 
   const showProgress =
     status === "playing" ||
@@ -634,6 +725,17 @@ export function EditGameDialog({
     replayFinishReady ||
     dropFinishReady;
   const busy = saving || deleting || finishingReplay || savingPlaythrough;
+
+  function applyStorefronts(next: GameStorefront[]) {
+    setStorefronts(next);
+    setPrices(prunePricesDraft(prices, next));
+    const nextPlay = pickPlayStorefront(next, playStorefront);
+    setPlayStorefront(nextPlay);
+    if (nextPlay === "steam") {
+      const steamH = Number(currentGame.steam_hours_played) || 0;
+      if (steamH > hoursPlayed) setHoursPlayed(steamH);
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -668,8 +770,115 @@ export function EditGameDialog({
                   <p className="font-medium leading-snug">{game.title}</p>
                   <p className="text-sm text-[var(--muted)]">
                     {game.developers.join(", ") ||
-                      game.platforms.slice(0, 2).join(", ")}
+                      game.platforms.slice(0, 2).join(", ") ||
+                      "—"}
                   </p>
+                  {status !== "wishlist" ? (
+                    <>
+                      {!editingStorefronts ? (
+                        <GameStorefrontChips
+                          owned={storefronts}
+                          available={availableStorefronts}
+                          onClick={() => {
+                            setEditingStorefronts(true);
+                            setEditingPrices(false);
+                          }}
+                        />
+                      ) : (
+                        <div className="mt-2 space-y-2 rounded-xl border border-[var(--border)] p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium">Tiendas</p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setEditingStorefronts(false)}
+                            >
+                              Listo
+                            </Button>
+                          </div>
+                          <GameStorefrontPicker
+                            value={storefronts}
+                            onChange={applyStorefronts}
+                            required
+                          />
+                        </div>
+                      )}
+                      {storefronts.length > 0 ? (
+                        !editingPrices ? (
+                          <GameStorefrontPricesLine
+                            storefronts={storefronts}
+                            prices={prices}
+                            onClick={() => {
+                              setEditingPrices(true);
+                              setEditingStorefronts(false);
+                            }}
+                          />
+                        ) : (
+                          <div className="mt-2 space-y-2 rounded-xl border border-[var(--border)] p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-medium">
+                                Precio pagado (€)
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setEditingPrices(false)}
+                              >
+                                Listo
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              {storefronts.map((sf) => (
+                                <div
+                                  key={sf}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span
+                                    title={GAME_STOREFRONT_LABELS[sf]}
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)]"
+                                  >
+                                    <GameStorefrontIcon
+                                      storefront={sf}
+                                      className="h-4 w-4"
+                                    />
+                                  </span>
+                                  <Input
+                                    id={`edit-price-${sf}`}
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    step={0.01}
+                                    placeholder={GAME_STOREFRONT_LABELS[sf]}
+                                    aria-label={`Precio en ${GAME_STOREFRONT_LABELS[sf]}`}
+                                    value={prices[sf] ?? ""}
+                                    onChange={(e) => {
+                                      const raw = e.target.value;
+                                      if (raw === "") {
+                                        setPrices({ ...prices, [sf]: "" });
+                                        return;
+                                      }
+                                      const n = Number(raw);
+                                      if (!Number.isFinite(n) || n < 0) return;
+                                      setPrices({ ...prices, [sf]: n });
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      ) : null}
+                    </>
+                  ) : availableStorefronts.length > 0 ? (
+                    <GameStorefrontChips
+                      owned={[]}
+                      available={availableStorefronts}
+                    />
+                  ) : null}
                   {playthroughs.length > 0 ? (
                     <p className="mt-1 text-xs text-[var(--muted)]">
                       {playthroughs.length}{" "}
@@ -760,61 +969,25 @@ export function EditGameDialog({
             </div>
           </div>
 
-          {status !== "wishlist" ? (
-            <>
-              <GameStorefrontPicker
-                value={storefronts}
-                onChange={(next) => {
-                  setStorefronts(next);
-                  setPrices(prunePricesDraft(prices, next));
-                }}
-                required
-              />
-              {storefronts.length > 0 ? (
-                <div className="space-y-3">
-                  <Label>Precio pagado (€)</Label>
-                  <div className="space-y-2">
-                    {storefronts.map((sf) => (
-                      <div key={sf} className="flex items-center gap-2">
-                        <span
-                          title={GAME_STOREFRONT_LABELS[sf]}
-                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border)]"
-                        >
-                          <GameStorefrontIcon
-                            storefront={sf}
-                            className="h-5 w-5"
-                          />
-                        </span>
-                        <Input
-                          id={`edit-price-${sf}`}
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          step={0.01}
-                          placeholder={GAME_STOREFRONT_LABELS[sf]}
-                          aria-label={`Precio en ${GAME_STOREFRONT_LABELS[sf]}`}
-                          value={prices[sf] ?? ""}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === "") {
-                              setPrices({ ...prices, [sf]: "" });
-                              return;
-                            }
-                            const n = Number(raw);
-                            if (!Number.isFinite(n) || n < 0) return;
-                            setPrices({ ...prices, [sf]: n });
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </>
+          {status !== "wishlist" && storefronts.length === 0 ? (
+            <p className="rounded-lg bg-[var(--danger)]/10 px-3 py-2 text-sm text-[var(--danger)]">
+              Pulsa los iconos bajo el título para marcar al menos una tienda.
+            </p>
           ) : null}
 
           {showProgress ? (
             <div className="space-y-3">
+              <GamePlayStorefrontPicker
+                options={storefronts}
+                value={playStorefront}
+                onChange={(sf) => {
+                  setPlayStorefront(sf);
+                  if (sf === "steam") {
+                    const steamH = Number(game.steam_hours_played) || 0;
+                    if (steamH > hoursPlayed) setHoursPlayed(steamH);
+                  }
+                }}
+              />
               <div className="space-y-2">
                 <Label htmlFor="hours-played">Horas jugadas</Label>
                 <Input
@@ -933,6 +1106,10 @@ export function EditGameDialog({
                         finish_date: todayISO(),
                         hours_played: 0,
                         rating: "",
+                        storefront: pickPlayStorefront(
+                          storefronts,
+                          playStorefront,
+                        ),
                       });
                       setError(null);
                     }}
@@ -998,6 +1175,14 @@ export function EditGameDialog({
                       ),
                     )}
                   </div>
+                  <GamePlayStorefrontPicker
+                    options={storefronts}
+                    value={newPlaythrough.storefront}
+                    onChange={(sf) =>
+                      setNewPlaythrough({ ...newPlaythrough, storefront: sf })
+                    }
+                    label="Tienda de la partida"
+                  />
                   <div className="space-y-2">
                     <Label>Horas</Label>
                     <Input
@@ -1102,6 +1287,17 @@ export function EditGameDialog({
                                 }
                               />
                             </div>
+                            <GamePlayStorefrontPicker
+                              options={storefronts}
+                              value={playthroughDraft.storefront}
+                              onChange={(sf) =>
+                                setPlaythroughDraft({
+                                  ...playthroughDraft,
+                                  storefront: sf,
+                                })
+                              }
+                              label="Tienda de la partida"
+                            />
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-2">
                                 <Label htmlFor={`pt-start-${p.id}`}>
@@ -1170,6 +1366,12 @@ export function EditGameDialog({
                               className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:bg-[var(--surface-2)]"
                             >
                               <p className="flex items-center gap-1.5 text-sm font-medium">
+                                {isGameStorefront(p.storefront) ? (
+                                  <GameStorefrontIcon
+                                    storefront={p.storefront}
+                                    className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]"
+                                  />
+                                ) : null}
                                 {GAME_PLAYTHROUGH_KIND_LABELS[p.kind]}
                                 <Pencil className="h-3 w-3 text-[var(--muted)]" />
                               </p>

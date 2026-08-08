@@ -17,6 +17,8 @@ export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
 export type Profile = {
   id: string;
   email: string | null;
+  steam_id?: string | null;
+  steam_synced_at?: string | null;
   created_at: string;
 };
 
@@ -74,6 +76,22 @@ export type UserGame = {
   start_date: string | null;
   finish_date: string | null;
   rating: number | null;
+  steam_app_id?: number | null;
+  /**
+   * Horas atribuibles a Steam (sesión Steam), aunque la partida actual
+   * sea en otra tienda. La sync de Steam escribe aquí siempre.
+   */
+  steam_hours_played?: number;
+  /** Tienda desde la que se está jugando la partida actual */
+  play_storefront?:
+    | "steam"
+    | "playstation"
+    | "xbox"
+    | "nintendo"
+    | "gog"
+    | "epic"
+    | "downloaded"
+    | null;
   created_at: string;
   updated_at?: string;
 };
@@ -83,6 +101,15 @@ export type UserGamePlaythrough = {
   user_game_id: string;
   user_id: string;
   kind: GamePlaythroughKind;
+  storefront?:
+    | "steam"
+    | "playstation"
+    | "xbox"
+    | "nintendo"
+    | "gog"
+    | "epic"
+    | "downloaded"
+    | null;
   start_date: string | null;
   finish_date: string | null;
   hours_played: number;

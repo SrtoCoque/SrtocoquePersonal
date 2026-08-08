@@ -86,25 +86,25 @@ export function GamesStatsDashboard({
   } | null>(null);
 
   useEffect(() => {
-    async function load() {
-      const supabase = createClient();
-      const [{ data: gameData }, { data: playthroughData }] = await Promise.all(
-        [
-          supabase.from("user_games").select("*").eq("user_id", userId),
-          supabase
-            .from("user_game_playthroughs")
-            .select("*")
-            .eq("user_id", userId),
-        ],
-      );
-      if (gameData) setGames(gameData as UserGame[]);
-      if (playthroughData) {
-        setPlaythroughs(playthroughData as UserGamePlaythrough[]);
-      }
-      setLoading(false);
-    }
-    load();
+    void load();
   }, [userId]);
+
+  async function load() {
+    setLoading(true);
+    const supabase = createClient();
+    const [{ data: gameData }, { data: playthroughData }] = await Promise.all([
+      supabase.from("user_games").select("*").eq("user_id", userId),
+      supabase
+        .from("user_game_playthroughs")
+        .select("*")
+        .eq("user_id", userId),
+    ]);
+    if (gameData) setGames(gameData as UserGame[]);
+    if (playthroughData) {
+      setPlaythroughs(playthroughData as UserGamePlaythrough[]);
+    }
+    setLoading(false);
+  }
 
   const gamesById = useMemo(() => {
     const map = new Map<string, UserGame>();
@@ -293,7 +293,7 @@ export function GamesStatsDashboard({
 
   return (
     <div className="min-h-screen">
-      <GamesHeader email={email} />
+      <GamesHeader email={email} onSteamSynced={() => void load()} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-4">

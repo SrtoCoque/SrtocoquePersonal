@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   GAME_STOREFRONT_LABELS,
+  GamePlayStorefrontPicker,
   GameStorefrontIcon,
   GameStorefrontPicker,
   type GameStorefront,
@@ -32,6 +33,8 @@ type Props = {
   onShelfStatusChange: (status: GameShelfStatus) => void;
   storefronts: GameStorefront[];
   onStorefrontsChange: (storefronts: GameStorefront[]) => void;
+  playStorefront: GameStorefront | null;
+  onPlayStorefrontChange: (storefront: GameStorefront | null) => void;
   prices: GamePricesDraft;
   onPricesChange: (prices: GamePricesDraft) => void;
   hoursPlayed: number | "";
@@ -49,6 +52,8 @@ export function GameDestinationFields({
   onShelfStatusChange,
   storefronts,
   onStorefrontsChange,
+  playStorefront,
+  onPlayStorefrontChange,
   prices,
   onPricesChange,
   hoursPlayed,
@@ -61,6 +66,11 @@ export function GameDestinationFields({
   function handleStorefrontsChange(next: GameStorefront[]) {
     onStorefrontsChange(next);
     onPricesChange(prunePricesDraft(prices, next));
+    if (next.length === 1) {
+      onPlayStorefrontChange(next[0]);
+    } else if (playStorefront && !next.includes(playStorefront)) {
+      onPlayStorefrontChange(null);
+    }
   }
 
   function setPrice(sf: GameStorefront, value: number | "") {
@@ -196,6 +206,11 @@ export function GameDestinationFields({
 
           {shelfStatus === "playing" || shelfStatus === "completed" ? (
             <div className="space-y-3 animate-fade-in">
+              <GamePlayStorefrontPicker
+                options={storefronts}
+                value={playStorefront}
+                onChange={onPlayStorefrontChange}
+              />
               <div className="space-y-2">
                 <Label htmlFor="game-hours-played">Horas jugadas</Label>
                 <Input

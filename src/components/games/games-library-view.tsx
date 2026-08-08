@@ -189,7 +189,11 @@ export function GamesLibraryView({
 
   return (
     <div className="min-h-screen">
-      <GamesHeader email={email} onAddGame={() => setAddOpen(true)} />
+      <GamesHeader
+        email={email}
+        onAddGame={() => setAddOpen(true)}
+        onSteamSynced={loadGames}
+      />
 
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6 flex min-w-0 flex-col gap-4">

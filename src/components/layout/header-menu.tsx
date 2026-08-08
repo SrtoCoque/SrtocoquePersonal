@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { LogOut, Menu, Moon, Sun, X, type LucideIcon } from "lucide-react";
+import { LogOut, Menu, Moon, RefreshCw, Sun, X, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,13 +15,20 @@ export type HeaderMenuItem = {
   active?: boolean;
 };
 
+export type HeaderMenuAction = {
+  label: string;
+  onClick: () => void;
+};
+
 /** Menú lateral solo visible en móvil (&lt; sm). */
 export function HeaderMenu({
   items,
   onSignOut,
+  extraActions,
 }: {
   items: HeaderMenuItem[];
   onSignOut: () => void | Promise<void>;
+  extraActions?: HeaderMenuAction[];
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -142,6 +149,20 @@ export function HeaderMenu({
                     </Link>
                   );
                 })}
+                {extraActions?.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      action.onClick();
+                    }}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--surface-2)]"
+                  >
+                    <RefreshCw className="h-5 w-5 shrink-0 opacity-80" />
+                    {action.label}
+                  </button>
+                ))}
               </div>
 
               <div className="shrink-0 space-y-1 border-t border-[var(--border)] bg-[var(--surface)] p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

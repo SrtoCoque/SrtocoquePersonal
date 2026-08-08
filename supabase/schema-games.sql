@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS user_games (
   start_date DATE,
   finish_date DATE,
   rating INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+  steam_app_id INTEGER,
+  play_storefront game_storefront,
+  steam_hours_played NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -101,6 +104,19 @@ ALTER TABLE user_games
 
 ALTER TABLE user_games
   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS steam_app_id INTEGER;
+
+ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS play_storefront game_storefront;
+
+ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS steam_hours_played NUMERIC NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS user_games_steam_app_id_idx
+  ON user_games (user_id, steam_app_id)
+  WHERE steam_app_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER
@@ -165,12 +181,16 @@ CREATE TABLE IF NOT EXISTS user_game_playthroughs (
   user_game_id UUID NOT NULL REFERENCES user_games (id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
   kind game_playthrough_kind NOT NULL DEFAULT 'completed',
+  storefront game_storefront,
   start_date DATE,
   finish_date DATE,
   hours_played NUMERIC NOT NULL DEFAULT 0 CHECK (hours_played >= 0),
   rating INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE user_game_playthroughs
+  ADD COLUMN IF NOT EXISTS storefront game_storefront;
 
 CREATE INDEX IF NOT EXISTS user_game_playthroughs_user_id_idx
   ON user_game_playthroughs (user_id);

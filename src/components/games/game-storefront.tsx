@@ -140,6 +140,200 @@ export function toggleStorefront(
     : [...current, id];
 }
 
+/**
+ * Infiere tiendas posibles a partir de los nombres de plataforma de IGDB.
+ * Si no hay coincidencias claras, devuelve [].
+ */
+export function storefrontsFromPlatformNames(
+  platforms: string[] | null | undefined,
+): GameStorefront[] {
+  if (!platforms?.length) return [];
+  const found = new Set<GameStorefront>();
+
+  for (const raw of platforms) {
+    const p = raw.toLowerCase();
+    if (/playstation|\bps\s?[1-5]\b|\bpsvita\b|\bpsp\b/.test(p)) {
+      found.add("playstation");
+    }
+    if (/xbox/.test(p)) found.add("xbox");
+    if (
+      /nintendo|switch|\bwii\b|3ds|gamecube|\bnes\b|\bsnes\b|game\s?boy|n64/.test(
+        p,
+      )
+    ) {
+      found.add("nintendo");
+    }
+    if (/steam/.test(p)) found.add("steam");
+    if (/\bgog\b/.test(p)) found.add("gog");
+    if (/epic/.test(p)) found.add("epic");
+    // PC genérico: posibles tiendas digitales de PC
+    if (
+      /\bpc\b|windows|microsoft windows|mac(os)?|os\s?x|linux/.test(p) &&
+      !/playstation|xbox|nintendo|switch/.test(p)
+    ) {
+      found.add("steam");
+      found.add("gog");
+      found.add("epic");
+    }
+  }
+
+  return GAME_STOREFRONTS.filter((id) => found.has(id));
+}
+
+/** Iconos compactos: marcadas + disponibles (gris) de la API. */
+export function GameStorefrontChips({
+  owned,
+  available,
+  onClick,
+  className,
+}: {
+  owned: GameStorefront[];
+  available?: GameStorefront[];
+  onClick?: () => void;
+  className?: string;
+}) {
+  const ownedSet = new Set(owned);
+  const extras = (available ?? []).filter((id) => !ownedSet.has(id));
+  const ids = [...owned, ...extras];
+
+  if (ids.length === 0) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "mt-1 text-left text-[11px] text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline",
+          className,
+        )}
+      >
+        Añadir tiendas…
+      </button>
+    );
+  }
+
+  const inner = (
+    <span className={cn("mt-1 flex flex-wrap items-center gap-1.5", className)}>
+      {ids.map((id) => {
+        const isOwned = ownedSet.has(id);
+        return (
+          <span
+            key={id}
+            title={
+              isOwned
+                ? GAME_STOREFRONT_LABELS[id]
+                : `${GAME_STOREFRONT_LABELS[id]} (disponible)`
+            }
+            className={cn(
+              "inline-flex",
+              isOwned
+                ? "text-[var(--foreground)]"
+                : "text-[var(--muted)] opacity-45",
+            )}
+          >
+            <GameStorefrontIcon storefront={id} className="h-3.5 w-3.5" />
+          </span>
+        );
+      })}
+    </span>
+  );
+
+  if (!onClick) return inner;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Editar tiendas"
+      title="Editar tiendas"
+      className="rounded-md text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+    >
+      {inner}
+    </button>
+  );
+}
+
+export function formatStorefrontPrice(value: number): string {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+  }).format(value);
+}
+
+/** Una línea: icono + precio por tienda marcada. */
+export function GameStorefrontPricesLine({
+  storefronts,
+  prices,
+  onClick,
+  className,
+}: {
+  storefronts: GameStorefront[];
+  prices: Partial<Record<GameStorefront, number | "">>;
+  onClick?: () => void;
+  className?: string;
+}) {
+  const entries = storefronts
+    .map((sf) => {
+      const raw = prices[sf];
+      const n = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(n) || n < 0) return null;
+      return { sf, n };
+    })
+    .filter((e): e is { sf: GameStorefront; n: number } => e != null);
+
+  if (entries.length === 0) {
+    if (!onClick || storefronts.length === 0) return null;
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "mt-1 text-left text-[11px] text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline",
+          className,
+        )}
+      >
+        Añadir precios…
+      </button>
+    );
+  }
+
+  const inner = (
+    <span
+      className={cn(
+        "mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[var(--muted)]",
+        className,
+      )}
+    >
+      {entries.map(({ sf, n }) => (
+        <span
+          key={sf}
+          title={GAME_STOREFRONT_LABELS[sf]}
+          className="inline-flex items-center gap-1"
+        >
+          <GameStorefrontIcon
+            storefront={sf}
+            className="h-3 w-3 text-[var(--foreground)]"
+          />
+          <span>{formatStorefrontPrice(n)}</span>
+        </span>
+      ))}
+    </span>
+  );
+
+  if (!onClick) return inner;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Editar precios"
+      title="Editar precios"
+      className="rounded-md text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+    >
+      {inner}
+    </button>
+  );
+}
+
 export function GameStorefrontPicker({
   value,
   onChange,
@@ -170,6 +364,58 @@ export function GameStorefrontPicker({
               aria-label={GAME_STOREFRONT_LABELS[id]}
               aria-pressed={selected}
               onClick={() => onChange(toggleStorefront(value, id))}
+              className={cn(
+                "flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border transition-colors",
+                selected
+                  ? "border-[var(--accent)] bg-[var(--accent)]/12 text-[var(--accent)]"
+                  : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]",
+              )}
+            >
+              <GameStorefrontIcon storefront={id} className="h-6 w-6" />
+              <span className="max-w-full truncate px-0.5 text-[9px] font-medium">
+                {GAME_STOREFRONT_LABELS[id]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Elige una sola tienda entre las que ya tienes (para la partida actual). */
+export function GamePlayStorefrontPicker({
+  options,
+  value,
+  onChange,
+  label = "Jugando en",
+}: {
+  options: GameStorefront[];
+  value: GameStorefront | null;
+  onChange: (next: GameStorefront) => void;
+  label?: string;
+}) {
+  if (options.length <= 1) return null;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium leading-none">{label}</p>
+      <div
+        className={cn(
+          "grid gap-2",
+          options.length <= 3 ? "grid-cols-3" : "grid-cols-4",
+        )}
+      >
+        {options.map((id) => {
+          const selected = value === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              title={GAME_STOREFRONT_LABELS[id]}
+              aria-label={GAME_STOREFRONT_LABELS[id]}
+              aria-pressed={selected}
+              onClick={() => onChange(id)}
               className={cn(
                 "flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border transition-colors",
                 selected
