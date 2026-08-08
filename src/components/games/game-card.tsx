@@ -34,11 +34,6 @@ const STATUS_BAR: Record<
     bar: "bg-sky-500 text-white",
     Icon: Gamepad2,
   },
-  replaying: {
-    label: "Lo estás rejugando",
-    bar: "bg-orange-500 text-white",
-    Icon: Gamepad2,
-  },
   completed: {
     label: "Ya lo has completado",
     bar: "bg-emerald-600 text-white",
@@ -66,10 +61,11 @@ export function GameCard({
   const showHours =
     (game.status === "owned" ||
       game.status === "playing" ||
-      game.status === "replaying" ||
       game.status === "completed" ||
       game.status === "dropped") &&
     hours > 0;
+  const timesCompleted = Number(game.times_completed) || 0;
+  const showTimes = timesCompleted > 1;
   const showPrice = totalPaid > 0;
 
   return (
@@ -145,7 +141,7 @@ export function GameCard({
           </p>
         )}
 
-        {showPrice || showHours || game.rating ? (
+        {showPrice || showHours || game.rating || showTimes ? (
           <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
             {game.rating ? (
               <div className="flex items-center gap-0.5 text-amber-500">
@@ -168,6 +164,11 @@ export function GameCard({
             {showHours ? (
               <span className="text-[10px] text-[var(--muted)]">
                 {hours} Horas
+              </span>
+            ) : null}
+            {showTimes ? (
+              <span className="text-[10px] text-[var(--muted)]">
+                ×{timesCompleted}
               </span>
             ) : null}
           </div>

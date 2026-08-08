@@ -23,9 +23,11 @@ import type { GameShelfStatus, RawgGameResult } from "@/lib/types";
 import type { GameStorefront } from "@/components/games/game-storefront";
 import { MetacriticBadge } from "@/components/games/metacritic-badge";
 import {
+  nextPricesSetAt,
   pricesDraftToDb,
   type GamePricesDraft,
 } from "@/lib/game-prices";
+import { insertHourLogIfIncreased, todayPlayedOn } from "@/lib/game-hour-logs";
 import { cn } from "@/lib/utils";
 import { submitFormOnEnter } from "@/lib/submit-form-on-enter";
 
@@ -146,30 +148,40 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
     setSaving(true);
     setError(null);
 
+    const hours =
+      status === "playing" || status === "completed"
+        ? Number(hoursPlayed) || 0
+        : 0;
+
+    const nextPrices =
+      destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {};
+
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("user_games").insert({
-      user_id: userId,
-      rawg_id: selected.rawgId,
-      title: selected.title,
-      developers: selected.developers,
-      cover_url: selected.coverUrl,
-      platforms: selected.platforms,
-      storefronts: destination === "shelf" ? storefronts : [],
-      play_storefront: needsPlay ? resolvedPlay : null,
-      released: selected.released,
-      metacritic: selected.metacritic,
-      status,
-      hours_played:
-        status === "playing" || status === "completed"
-          ? Number(hoursPlayed) || 0
-          : 0,
-      prices:
-        destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {},
-      playtime_estimate: selected.playtimeEstimate,
-      start_date:
-        status === "playing" || status === "completed" ? startDate : null,
-      finish_date: status === "completed" ? finishDate : null,
-    });
+    const { data: inserted, error: insertError } = await supabase
+      .from("user_games")
+      .insert({
+        user_id: userId,
+        rawg_id: selected.rawgId,
+        title: selected.title,
+        developers: selected.developers,
+        cover_url: selected.coverUrl,
+        platforms: selected.platforms,
+        storefronts: destination === "shelf" ? storefronts : [],
+        play_storefront: needsPlay ? resolvedPlay : null,
+        released: selected.released,
+        metacritic: selected.metacritic,
+        status,
+        hours_played: hours,
+        prices: nextPrices,
+        prices_set_at: nextPricesSetAt({ nextPrices }),
+        playtime_estimate: selected.playtimeEstimate,
+        start_date:
+          status === "playing" || status === "completed" ? startDate : null,
+        finish_date: status === "completed" ? finishDate : null,
+        times_completed: status === "completed" ? 1 : 0,
+      })
+      .select("id")
+      .single();
 
     setSaving(false);
     if (insertError) {
@@ -178,6 +190,8 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
           : insertError.message.includes("storefront")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
+          : insertError.message.includes("prices_set_at")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-set-at.sql"
           : insertError.message.includes("prices")
             ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-by-storefront.sql"
             : insertError.message.includes("start_date")
@@ -186,6 +200,27 @@ export function AddGameModal({ open, onOpenChange, userId, onAdded }: Props) {
       );
       return;
     }
+
+    if (inserted?.id && hours > 0) {
+      const { error: logError } = await insertHourLogIfIncreased(supabase, {
+        userId,
+        gameId: inserted.id as string,
+        before: 0,
+        after: hours,
+        playedOn:
+          (status === "completed" && finishDate) ||
+          startDate ||
+          todayPlayedOn(),
+        source: "manual",
+      });
+      if (logError?.message.includes("user_game_hour_logs")) {
+        setError(
+          "Falta actualizar Supabase. Ejecuta supabase/migrate-game-hour-logs.sql",
+        );
+        return;
+      }
+    }
+
     onOpenChange(false);
     onAdded();
   }

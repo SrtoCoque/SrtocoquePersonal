@@ -9,6 +9,7 @@ import {
   Dumbbell,
   Gamepad2,
   LogOut,
+  Timer,
   Tv,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -64,6 +65,18 @@ const SECTIONS = [
     border: "border-emerald-500/35 hover:border-emerald-300/60",
     shadow: "hover:shadow-emerald-900/30",
     iconBg: "bg-emerald-400/25 text-emerald-50",
+  },
+  {
+    href: "/productividad",
+    title: "Productividad",
+    description: "Horas de foco y bloques",
+    icon: Timer,
+    available: true,
+    image: "/home/productividad.jpg",
+    tint: "from-teal-950/90 via-teal-900/55 to-cyan-800/35",
+    border: "border-teal-500/35 hover:border-teal-300/60",
+    shadow: "hover:shadow-teal-900/30",
+    iconBg: "bg-teal-400/25 text-teal-50",
   },
   {
     href: "#",

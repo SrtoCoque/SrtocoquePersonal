@@ -22,12 +22,29 @@ import { GameStorefrontIcon } from "@/components/games/game-storefront";
 import { cn } from "@/lib/utils";
 
 const STEAM_AUTO_SYNC_MS = 60 * 60 * 1000;
+const STEAM_AUTO_SYNC_STORAGE_KEY = "steam-auto-sync-at";
 
 function shouldAutoSyncSteam(syncedAt: string | null | undefined): boolean {
   if (!syncedAt) return true;
   const t = Date.parse(syncedAt);
   if (!Number.isFinite(t)) return true;
   return Date.now() - t >= STEAM_AUTO_SYNC_MS;
+}
+
+function readLocalAutoSyncAt(): string | null {
+  try {
+    return window.sessionStorage.getItem(STEAM_AUTO_SYNC_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalAutoSyncAt(iso: string) {
+  try {
+    window.sessionStorage.setItem(STEAM_AUTO_SYNC_STORAGE_KEY, iso);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function GamesHeader({
@@ -71,12 +88,14 @@ function GamesHeaderBar({
   const [steamOpen, setSteamOpen] = useState(false);
   const [steamSyncing, setSteamSyncing] = useState(false);
   const steamSyncInFlight = useRef(false);
+  const onSteamSyncedRef = useRef(onSteamSynced);
+  onSteamSyncedRef.current = onSteamSynced;
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname, searchParams]);
 
-  // Al entrar en Inicio: sync en segundo plano solo si lleva >1 h sin sincronizar
+  // Al entrar en Inicio: sync en segundo plano como máximo 1 vez/hora
   useEffect(() => {
     if (pathname !== "/games") return;
     if (steamSyncInFlight.current) return;
@@ -84,6 +103,9 @@ function GamesHeaderBar({
     let cancelled = false;
     void (async () => {
       try {
+        const localAt = readLocalAutoSyncAt();
+        if (!shouldAutoSyncSteam(localAt)) return;
+
         const linkRes = await fetch("/api/steam/link");
         if (!linkRes.ok || cancelled) return;
         const linkData = (await linkRes.json()) as {
@@ -92,29 +114,41 @@ function GamesHeaderBar({
           configured?: boolean;
         };
         if (!linkData.configured || !linkData.steamId) return;
-        if (!shouldAutoSyncSteam(linkData.syncedAt)) return;
+        if (!shouldAutoSyncSteam(linkData.syncedAt)) {
+          if (linkData.syncedAt) writeLocalAutoSyncAt(linkData.syncedAt);
+          return;
+        }
         if (cancelled || steamSyncInFlight.current) return;
 
         steamSyncInFlight.current = true;
         setSteamSyncing(true);
         try {
-          const syncRes = await fetch("/api/steam/sync", { method: "POST" });
-          if (syncRes.ok) onSteamSynced?.();
+          const syncRes = await fetch("/api/steam/sync?auto=1", {
+            method: "POST",
+          });
+          if (!syncRes.ok || cancelled) return;
+          const body = (await syncRes.json()) as {
+            skipped?: boolean;
+            syncedAt?: string;
+          };
+          const at = body.syncedAt ?? new Date().toISOString();
+          writeLocalAutoSyncAt(at);
+          if (!body.skipped) onSteamSyncedRef.current?.();
         } finally {
           steamSyncInFlight.current = false;
-          setSteamSyncing(false);
+          if (!cancelled) setSteamSyncing(false);
         }
       } catch {
         /* silencioso: el usuario puede sync manual */
         steamSyncInFlight.current = false;
-        setSteamSyncing(false);
+        if (!cancelled) setSteamSyncing(false);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [pathname, onSteamSynced]);
+  }, [pathname]);
 
   async function signOut() {
     const supabase = createClient();
@@ -262,7 +296,10 @@ function GamesHeaderBar({
       <SteamSyncDialog
         open={steamOpen}
         onOpenChange={setSteamOpen}
-        onSynced={onSteamSynced}
+        onSynced={() => {
+          writeLocalAutoSyncAt(new Date().toISOString());
+          onSteamSynced?.();
+        }}
       />
     </>
   );

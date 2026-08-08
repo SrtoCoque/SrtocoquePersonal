@@ -19,9 +19,11 @@ import type { GameStorefront } from "@/components/games/game-storefront";
 import { createClient } from "@/lib/supabase/client";
 import type { GameShelfStatus, RawgGameResult } from "@/lib/types";
 import {
+  nextPricesSetAt,
   pricesDraftToDb,
   type GamePricesDraft,
 } from "@/lib/game-prices";
+import { insertHourLogIfIncreased, todayPlayedOn } from "@/lib/game-hour-logs";
 import { cn } from "@/lib/utils";
 import { submitFormOnEnter } from "@/lib/submit-form-on-enter";
 
@@ -95,30 +97,40 @@ export function SaveGameDialog({
     setSaving(true);
     setError(null);
 
+    const hours =
+      status === "playing" || status === "completed"
+        ? Number(hoursPlayed) || 0
+        : 0;
+
+    const nextPrices =
+      destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {};
+
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("user_games").insert({
-      user_id: userId,
-      rawg_id: game.rawgId,
-      title: game.title,
-      developers: game.developers,
-      cover_url: game.coverUrl,
-      platforms: game.platforms,
-      storefronts: destination === "shelf" ? storefronts : [],
-      play_storefront: needsPlay ? resolvedPlay : null,
-      released: game.released,
-      metacritic: game.metacritic,
-      status,
-      hours_played:
-        status === "playing" || status === "completed"
-          ? Number(hoursPlayed) || 0
-          : 0,
-      prices:
-        destination === "shelf" ? pricesDraftToDb(prices, storefronts) : {},
-      playtime_estimate: game.playtimeEstimate,
-      start_date:
-        status === "playing" || status === "completed" ? startDate : null,
-      finish_date: status === "completed" ? finishDate : null,
-    });
+    const { data: inserted, error: insertError } = await supabase
+      .from("user_games")
+      .insert({
+        user_id: userId,
+        rawg_id: game.rawgId,
+        title: game.title,
+        developers: game.developers,
+        cover_url: game.coverUrl,
+        platforms: game.platforms,
+        storefronts: destination === "shelf" ? storefronts : [],
+        play_storefront: needsPlay ? resolvedPlay : null,
+        released: game.released,
+        metacritic: game.metacritic,
+        status,
+        hours_played: hours,
+        prices: nextPrices,
+        prices_set_at: nextPricesSetAt({ nextPrices }),
+        playtime_estimate: game.playtimeEstimate,
+        start_date:
+          status === "playing" || status === "completed" ? startDate : null,
+        finish_date: status === "completed" ? finishDate : null,
+        times_completed: status === "completed" ? 1 : 0,
+      })
+      .select("id")
+      .single();
 
     setSaving(false);
     if (insertError) {
@@ -127,6 +139,8 @@ export function SaveGameDialog({
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-play-storefront.sql"
           : insertError.message.includes("storefront")
           ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-storefronts-multi.sql"
+          : insertError.message.includes("prices_set_at")
+            ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-set-at.sql"
           : insertError.message.includes("prices")
             ? "Falta actualizar Supabase. Ejecuta supabase/migrate-game-prices-by-storefront.sql"
             : insertError.message.includes("start_date")
@@ -134,6 +148,26 @@ export function SaveGameDialog({
               : insertError.message,
       );
       return;
+    }
+
+    if (inserted?.id && hours > 0) {
+      const { error: logError } = await insertHourLogIfIncreased(supabase, {
+        userId,
+        gameId: inserted.id as string,
+        before: 0,
+        after: hours,
+        playedOn:
+          (status === "completed" && finishDate) ||
+          startDate ||
+          todayPlayedOn(),
+        source: "manual",
+      });
+      if (logError?.message.includes("user_game_hour_logs")) {
+        setError(
+          "Falta actualizar Supabase. Ejecuta supabase/migrate-game-hour-logs.sql",
+        );
+        return;
+      }
     }
 
     setDone(true);

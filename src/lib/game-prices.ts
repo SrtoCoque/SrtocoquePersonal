@@ -64,3 +64,30 @@ export function prunePricesDraft(
   }
   return out;
 }
+
+function todayPricesSetAt(): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Conserva la fecha original si ya había precio pagado;
+ * si se registra por primera vez, usa hoy; si se borra, null.
+ */
+export function nextPricesSetAt(input: {
+  nextPrices: GamePrices;
+  previousSetAt?: string | null;
+  today?: string;
+}): string | null {
+  if (sumGamePrices(input.nextPrices) <= 0) return null;
+  if (input.previousSetAt) return input.previousSetAt.slice(0, 10);
+  return (input.today ?? todayPricesSetAt()).slice(0, 10);
+}

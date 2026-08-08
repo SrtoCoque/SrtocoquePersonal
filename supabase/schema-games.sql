@@ -75,13 +75,16 @@ CREATE TABLE IF NOT EXISTS user_games (
   status game_status NOT NULL DEFAULT 'wishlist',
   hours_played NUMERIC NOT NULL DEFAULT 0 CHECK (hours_played >= 0),
   prices JSONB NOT NULL DEFAULT '{}'::jsonb,
+  prices_set_at DATE,
   playtime_estimate INTEGER,
   start_date DATE,
   finish_date DATE,
   rating INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+  times_completed INTEGER NOT NULL DEFAULT 0 CHECK (times_completed >= 0),
   steam_app_id INTEGER,
   play_storefront game_storefront,
   steam_hours_played NUMERIC NOT NULL DEFAULT 0,
+  steam_last_played_at DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -100,6 +103,9 @@ ALTER TABLE user_games
   ADD COLUMN IF NOT EXISTS prices JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS prices_set_at DATE;
+
+ALTER TABLE user_games
   ADD COLUMN IF NOT EXISTS start_date DATE;
 
 ALTER TABLE user_games
@@ -113,6 +119,13 @@ ALTER TABLE user_games
 
 ALTER TABLE user_games
   ADD COLUMN IF NOT EXISTS steam_hours_played NUMERIC NOT NULL DEFAULT 0;
+
+ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS times_completed INTEGER NOT NULL DEFAULT 0
+  CHECK (times_completed >= 0);
+
+ALTER TABLE user_games
+  ADD COLUMN IF NOT EXISTS steam_last_played_at DATE;
 
 CREATE INDEX IF NOT EXISTS user_games_steam_app_id_idx
   ON user_games (user_id, steam_app_id)
@@ -176,54 +189,46 @@ CREATE POLICY "user_games_delete_own"
   ON user_games FOR DELETE
   USING (auth.uid() = user_id);
 
-CREATE TABLE IF NOT EXISTS user_game_playthroughs (
+CREATE TABLE IF NOT EXISTS user_game_hour_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_game_id UUID NOT NULL REFERENCES user_games (id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
-  kind game_playthrough_kind NOT NULL DEFAULT 'completed',
-  storefront game_storefront,
-  start_date DATE,
-  finish_date DATE,
-  hours_played NUMERIC NOT NULL DEFAULT 0 CHECK (hours_played >= 0),
-  rating INTEGER CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+  user_game_id UUID NOT NULL REFERENCES user_games (id) ON DELETE CASCADE,
+  played_on DATE NOT NULL DEFAULT (CURRENT_DATE),
+  hours_delta NUMERIC NOT NULL CHECK (hours_delta > 0),
+  source TEXT NOT NULL CHECK (source IN ('steam_sync', 'manual')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE user_game_playthroughs
-  ADD COLUMN IF NOT EXISTS storefront game_storefront;
+CREATE INDEX IF NOT EXISTS user_game_hour_logs_user_played_idx
+  ON user_game_hour_logs (user_id, played_on);
+CREATE INDEX IF NOT EXISTS user_game_hour_logs_game_played_idx
+  ON user_game_hour_logs (user_game_id, played_on);
 
-CREATE INDEX IF NOT EXISTS user_game_playthroughs_user_id_idx
-  ON user_game_playthroughs (user_id);
-CREATE INDEX IF NOT EXISTS user_game_playthroughs_game_idx
-  ON user_game_playthroughs (user_game_id);
-CREATE INDEX IF NOT EXISTS user_game_playthroughs_date_idx
-  ON user_game_playthroughs (user_id, finish_date);
+ALTER TABLE user_game_hour_logs ENABLE ROW LEVEL SECURITY;
 
-ALTER TABLE user_game_playthroughs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "user_game_hour_logs_select_own" ON user_game_hour_logs;
+DROP POLICY IF EXISTS "user_game_hour_logs_insert_own" ON user_game_hour_logs;
+DROP POLICY IF EXISTS "user_game_hour_logs_update_own" ON user_game_hour_logs;
+DROP POLICY IF EXISTS "user_game_hour_logs_delete_own" ON user_game_hour_logs;
 
-DROP POLICY IF EXISTS "user_game_playthroughs_select_own" ON user_game_playthroughs;
-DROP POLICY IF EXISTS "user_game_playthroughs_insert_own" ON user_game_playthroughs;
-DROP POLICY IF EXISTS "user_game_playthroughs_update_own" ON user_game_playthroughs;
-DROP POLICY IF EXISTS "user_game_playthroughs_delete_own" ON user_game_playthroughs;
-
-CREATE POLICY "user_game_playthroughs_select_own"
-  ON user_game_playthroughs FOR SELECT
+CREATE POLICY "user_game_hour_logs_select_own"
+  ON user_game_hour_logs FOR SELECT
   USING (auth.uid() = user_id);
 
-CREATE POLICY "user_game_playthroughs_insert_own"
-  ON user_game_playthroughs FOR INSERT
+CREATE POLICY "user_game_hour_logs_insert_own"
+  ON user_game_hour_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "user_game_playthroughs_update_own"
-  ON user_game_playthroughs FOR UPDATE
+CREATE POLICY "user_game_hour_logs_update_own"
+  ON user_game_hour_logs FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY "user_game_playthroughs_delete_own"
-  ON user_game_playthroughs FOR DELETE
+CREATE POLICY "user_game_hour_logs_delete_own"
+  ON user_game_hour_logs FOR DELETE
   USING (auth.uid() = user_id);
 
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public'
-  AND table_name IN ('user_games', 'user_game_playthroughs');
+  AND table_name IN ('user_games', 'user_game_hour_logs');

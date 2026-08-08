@@ -24,7 +24,8 @@ import {
   sumGamePrices,
 } from "@/lib/game-prices";
 import type { GameStatus, UserGame } from "@/lib/types";
-import { isGameOnShelf } from "@/lib/types";
+import { isGameOnShelf, normalizeGameStatus } from "@/lib/types";
+import { compareByLastPlayed, latestHourPlayedOnByGame } from "@/lib/game-last-played";
 import { cn } from "@/lib/utils";
 
 type FilterMode = "status" | "platform";
@@ -63,10 +64,10 @@ function parseMode(raw: string | null): FilterMode {
 }
 
 function parseStatusFilter(raw: string | null): StatusFilter {
+  if (raw === "replaying") return "playing";
   if (
     raw === "shelf" ||
     raw === "playing" ||
-    raw === "replaying" ||
     raw === "wishlist" ||
     raw === "completed" ||
     raw === "dropped" ||
@@ -93,6 +94,9 @@ export function GamesLibraryView({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [games, setGames] = useState<UserGame[]>([]);
+  const [latestHoursByGame, setLatestHoursByGame] = useState<
+    Map<string, string>
+  >(() => new Map());
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<FilterMode>(() =>
     parseMode(searchParams.get("by")),
@@ -108,13 +112,34 @@ export function GamesLibraryView({
 
   const loadGames = useCallback(async () => {
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("user_games")
-      .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: hourLogData }] = await Promise.all([
+      supabase
+        .from("user_games")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("user_game_hour_logs")
+        .select("user_game_id, played_on")
+        .eq("user_id", userId),
+    ]);
 
-    if (!error && data) setGames(data as UserGame[]);
+    if (!error && data) {
+      setGames(
+        (data as UserGame[]).map((g) => ({
+          ...g,
+          status: normalizeGameStatus(g.status),
+        })),
+      );
+    }
+    setLatestHoursByGame(
+      latestHourPlayedOnByGame(
+        (hourLogData ?? []) as Array<{
+          user_game_id: string;
+          played_on: string;
+        }>,
+      ),
+    );
     setLoading(false);
   }, [userId]);
 
@@ -169,15 +194,9 @@ export function GamesLibraryView({
   );
 
   const playingGames = useMemo(() => {
-    const list = games.filter(
-      (g) => g.status === "playing" || g.status === "replaying",
-    );
-    return list.sort((a, b) => {
-      const aTime = new Date(a.updated_at ?? a.created_at).getTime();
-      const bTime = new Date(b.updated_at ?? b.created_at).getTime();
-      return bTime - aTime;
-    });
-  }, [games]);
+    const list = games.filter((g) => g.status === "playing");
+    return list.sort((a, b) => compareByLastPlayed(a, b, latestHoursByGame));
+  }, [games, latestHoursByGame]);
   const wishlistGames = useMemo(
     () => sortWishlistByPrice(games.filter((g) => g.status === "wishlist")),
     [games],
@@ -199,9 +218,7 @@ export function GamesLibraryView({
       return games.filter((g) => isGameOnShelf(g.status));
     }
     if (statusFilter === "playing") {
-      return games.filter(
-        (g) => g.status === "playing" || g.status === "replaying",
-      );
+      return games.filter((g) => g.status === "playing");
     }
     if (statusFilter === "wishlist") {
       return sortWishlistByPrice(

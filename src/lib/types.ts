@@ -6,11 +6,8 @@ export type GameStatus =
   | "wishlist"
   | "owned"
   | "playing"
-  | "replaying"
   | "completed"
   | "dropped";
-
-export type GamePlaythroughKind = "completed" | "replay";
 
 export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
 
@@ -72,16 +69,22 @@ export type UserGame = {
       number
     >
   >;
+  /** Día en que se registró el precio pagado (YYYY-MM-DD). */
+  prices_set_at?: string | null;
   playtime_estimate: number | null;
   start_date: string | null;
   finish_date: string | null;
   rating: number | null;
+  /** Veces que se ha pasado el juego. */
+  times_completed?: number;
   steam_app_id?: number | null;
   /**
    * Horas atribuibles a Steam (sesión Steam), aunque la partida actual
    * sea en otra tienda. La sync de Steam escribe aquí siempre.
    */
   steam_hours_played?: number;
+  /** Última vez jugado en Steam (YYYY-MM-DD), desde rtime_last_played. */
+  steam_last_played_at?: string | null;
   /** Tienda desde la que se está jugando la partida actual */
   play_storefront?:
     | "steam"
@@ -96,24 +99,15 @@ export type UserGame = {
   updated_at?: string;
 };
 
-export type UserGamePlaythrough = {
+export type GameHourLogSource = "steam_sync" | "manual";
+
+export type UserGameHourLog = {
   id: string;
-  user_game_id: string;
   user_id: string;
-  kind: GamePlaythroughKind;
-  storefront?:
-    | "steam"
-    | "playstation"
-    | "xbox"
-    | "nintendo"
-    | "gog"
-    | "epic"
-    | "downloaded"
-    | null;
-  start_date: string | null;
-  finish_date: string | null;
-  hours_played: number;
-  rating: number | null;
+  user_game_id: string;
+  played_on: string;
+  hours_delta: number;
+  source: GameHourLogSource;
   created_at: string;
 };
 
@@ -300,7 +294,6 @@ export const GAME_STATUS_LABELS: Record<GameStatus, string> = {
   wishlist: "Wishlist",
   owned: "Sin empezar",
   playing: "Jugando",
-  replaying: "Rejugando",
   completed: "Completado",
   dropped: "Sin terminar",
 };
@@ -309,14 +302,8 @@ export const GAME_STATUS_HINTS: Record<GameStatus, string> = {
   wishlist: "Lo quiero, pero aún no lo tengo",
   owned: "Lo tengo, sin empezar",
   playing: "Lo tengo · jugando ahora",
-  replaying: "Lo tengo · segunda (o más) partida",
   completed: "Lo tengo · terminado",
   dropped: "Lo jugué, pero no lo terminé",
-};
-
-export const GAME_PLAYTHROUGH_KIND_LABELS: Record<GamePlaythroughKind, string> = {
-  completed: "Completado",
-  replay: "Rejugado",
 };
 
 export const MOVIE_STATUS_LABELS: Record<MovieStatus, string> = {
@@ -334,7 +321,7 @@ export const MOVIE_WATCH_LOCATION_LABELS: Record<MovieWatchLocation, string> = {
 export type ShelfStatus = Extract<BookStatus, "owned" | "reading" | "read">;
 export type GameShelfStatus = Extract<
   GameStatus,
-  "owned" | "playing" | "replaying" | "completed" | "dropped"
+  "owned" | "playing" | "completed" | "dropped"
 >;
 export type MovieShelfStatus = Extract<
   MovieStatus,
@@ -345,7 +332,6 @@ export const SHELF_STATUSES: ShelfStatus[] = ["owned", "reading", "read"];
 export const GAME_SHELF_STATUSES: GameShelfStatus[] = [
   "owned",
   "playing",
-  "replaying",
   "completed",
   "dropped",
 ];
@@ -359,8 +345,15 @@ export function isOnShelf(status: BookStatus): status is ShelfStatus {
   return SHELF_STATUSES.includes(status as ShelfStatus);
 }
 
-export function isGameOnShelf(status: GameStatus): status is GameShelfStatus {
+export function isGameOnShelf(status: GameStatus | string): status is GameShelfStatus {
+  if (status === "replaying") return true;
   return GAME_SHELF_STATUSES.includes(status as GameShelfStatus);
+}
+
+/** Normaliza filas legacy con status replaying. */
+export function normalizeGameStatus(status: string): GameStatus {
+  if (status === "replaying") return "playing";
+  return status as GameStatus;
 }
 
 export function isMovieOnShelf(status: MovieStatus): status is MovieShelfStatus {

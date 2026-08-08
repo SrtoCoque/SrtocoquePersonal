@@ -89,9 +89,7 @@ export function CurrentlyPlaying({
 
               <div className="flex min-w-0 flex-1 flex-col justify-center px-4 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--accent)]">
-                  {game.status === "replaying"
-                    ? "Estás rejugando"
-                    : "Estás jugando"}
+                  Estás jugando
                 </p>
                 <h2 className="mt-0.5 line-clamp-2 font-[family-name:var(--font-display)] text-base font-semibold leading-snug tracking-tight sm:text-lg">
                   {game.title}

@@ -1,123 +1,65 @@
-import type { GamePlaythroughKind, GameStatus } from "@/lib/types";
-
-export type SteamHoursPlaythrough = {
-  id: string;
-  kind: GamePlaythroughKind;
-  hours_played: number;
-  created_at: string;
-  storefront?: string | null;
-};
+import type { GameStatus } from "@/lib/types";
 
 export type SteamHoursAllocation = {
-  /** Horas de la sesión / resto atribuible a Steam */
+  /** Horas de la sesión / total atribuible a Steam en ficha */
   steamSessionHours: number;
-  /** Escribir en user_games.hours_played (partida actual visible) */
+  /** Escribir en user_games.hours_played */
   updateMainHours: boolean;
   mainHours?: number;
-  /** Actualizar partida del historial (solo si es de Steam) */
-  playthroughUpdate?: { id: string; hours_played: number };
 };
 
-function isSteamPlaythrough(
-  p: SteamHoursPlaythrough,
-  steamOnly: boolean,
-): boolean {
-  if (p.storefront === "steam") return true;
-  // Solo-Steam: partidas antiguas sin tienda cuentan como Steam
-  if (steamOnly && (p.storefront == null || p.storefront === "")) return true;
-  return false;
-}
-
 /**
- * Reparte horas de Steam según tienda de la partida actual.
+ * Reparte horas de Steam sobre la ficha (sin historial de partidas).
  *
- * - Solo Steam: alinea hours_played (y historial Steam) con el total de Steam.
- * - Varias tiendas + jugando/completado en Steam: suma el excedente a esa partida.
- * - Varias tiendas + jugando en otra: no toca hours_played; guarda el resto en
- *   steam_hours_played (sesión Steam aparte).
+ * - Solo Steam / jugando en Steam: escribe steam_hours_played y solo
+ *   sube hours_played si Steam trae más (nunca baja un valor manual).
+ * - Jugando en otra tienda: no toca hours_played; guarda en steam_hours_played.
  */
 export function allocateSteamHours(input: {
   status: GameStatus;
   steamHours: number;
   currentHours: number;
   playStorefront: string | null | undefined;
-  playthroughs: SteamHoursPlaythrough[];
   steamOnly: boolean;
 }): SteamHoursAllocation {
   const steamHours = Math.max(0, Number(input.steamHours) || 0);
   const currentHours = Math.max(0, Number(input.currentHours) || 0);
   const { status, steamOnly } = input;
+  // Compat: filas antiguas «replaying» se tratan como jugando
+  const normalized: GameStatus =
+    (status as string) === "replaying" ? "playing" : status;
   const playingOnSteam = steamOnly || input.playStorefront === "steam";
 
-  const steamPts = input.playthroughs
-    .filter((p) => isSteamPlaythrough(p, steamOnly))
-    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+  // Nunca bajar horas manuales: si pusiste 140 y Steam dice 60, se quedan 140
+  const pickMain = (allocated: number) =>
+    Math.max(currentHours, Math.max(0, allocated));
 
-  const sumSteamArchived = steamPts.reduce(
-    (acc, p) => acc + (Number(p.hours_played) || 0),
-    0,
-  );
+  if (normalized === "wishlist") {
+    return { steamSessionHours: steamHours, updateMainHours: false };
+  }
 
-  const session = Math.max(0, steamHours - sumSteamArchived);
-
-  const pickMain = (allocated: number, fallback = currentHours) =>
-    steamOnly ? Math.max(0, allocated) : Math.max(fallback, allocated);
-
-  if (status === "owned") {
-    // Biblioteca / sin empezar: las horas de Steam van al juego aunque no esté «Jugando»
+  if (normalized === "owned") {
     return {
-      steamSessionHours: session,
-      updateMainHours: true,
-      mainHours: pickMain(session),
-    };
-  }
-
-  if (status === "wishlist") {
-    return { steamSessionHours: session, updateMainHours: false };
-  }
-
-  if (
-    status === "playing" ||
-    status === "replaying" ||
-    status === "dropped"
-  ) {
-    if (playingOnSteam) {
-      return {
-        steamSessionHours: session,
-        updateMainHours: true,
-        mainHours: pickMain(session),
-      };
-    }
-    return { steamSessionHours: session, updateMainHours: false };
-  }
-
-  // completed
-  if (!playingOnSteam) {
-    return { steamSessionHours: session, updateMainHours: false };
-  }
-
-  if (steamPts.length === 0) {
-    return {
-      steamSessionHours: session,
+      steamSessionHours: steamHours,
       updateMainHours: true,
       mainHours: pickMain(steamHours),
     };
   }
 
-  const latest = steamPts[steamPts.length - 1]!;
-  const prior = sumSteamArchived - (Number(latest.hours_played) || 0);
-  const latestHours = pickMain(
-    steamHours - prior,
-    Number(latest.hours_played) || 0,
-  );
+  if (
+    normalized === "playing" ||
+    normalized === "dropped" ||
+    normalized === "completed"
+  ) {
+    if (playingOnSteam) {
+      return {
+        steamSessionHours: steamHours,
+        updateMainHours: true,
+        mainHours: pickMain(steamHours),
+      };
+    }
+    return { steamSessionHours: steamHours, updateMainHours: false };
+  }
 
-  return {
-    steamSessionHours: latestHours,
-    updateMainHours: true,
-    mainHours: latestHours,
-    playthroughUpdate: {
-      id: latest.id,
-      hours_played: latestHours,
-    },
-  };
+  return { steamSessionHours: steamHours, updateMainHours: false };
 }

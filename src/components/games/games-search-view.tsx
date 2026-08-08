@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import type { RawgGameResult, UserGame } from "@/lib/types";
+import { normalizeGameStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const IN_LIBRARY: Record<
@@ -35,12 +36,6 @@ const IN_LIBRARY: Record<
     label: "Lo estás jugando",
     bar: "bg-sky-500 text-white",
     ring: "ring-2 ring-sky-500/70 border-sky-500/40",
-    Icon: Gamepad2,
-  },
-  replaying: {
-    label: "Lo estás rejugando",
-    bar: "bg-orange-500 text-white",
-    ring: "ring-2 ring-orange-500/70 border-orange-500/40",
     Icon: Gamepad2,
   },
   completed: {
@@ -91,7 +86,14 @@ export function GamesSearchView({
       .from("user_games")
       .select("*")
       .eq("user_id", userId);
-    if (data) setLibrary(data as UserGame[]);
+    if (data) {
+      setLibrary(
+        (data as UserGame[]).map((g) => ({
+          ...g,
+          status: normalizeGameStatus(g.status),
+        })),
+      );
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -290,7 +292,6 @@ export function GamesSearchView({
                         const showHours =
                           existing &&
                           (existing.status === "playing" ||
-                            existing.status === "replaying" ||
                             existing.status === "completed" ||
                             existing.status === "dropped") &&
                           hours > 0;

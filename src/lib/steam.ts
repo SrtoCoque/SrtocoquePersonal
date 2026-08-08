@@ -4,8 +4,29 @@ export type SteamOwnedGame = {
   appid: number;
   name: string;
   playtimeForeverMinutes: number;
+  /** Minutos jugados en las últimas 2 semanas (Steam). */
+  playtime2WeeksMinutes: number;
+  /** Unix seconds de la última vez jugado (si Steam lo envía). */
+  lastPlayedAt: number | null;
   imgIconUrl: string | null;
 };
+
+/** Convierte rtime_last_played a YYYY-MM-DD en Europe/Madrid. */
+export function steamLastPlayedOn(
+  unixSeconds: number | null | undefined,
+): string | null {
+  if (unixSeconds == null || unixSeconds <= 0) return null;
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(unixSeconds * 1000));
+  } catch {
+    return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
+  }
+}
 
 function steamApiKey(): string {
   const key = process.env.STEAM_WEB_API_KEY?.trim();
@@ -103,6 +124,8 @@ export async function fetchSteamOwnedGames(
         appid: number;
         name?: string;
         playtime_forever?: number;
+        playtime_2weeks?: number;
+        rtime_last_played?: number;
         img_icon_url?: string;
       }>;
     };
@@ -123,6 +146,11 @@ export async function fetchSteamOwnedGames(
     appid: g.appid,
     name: g.name?.trim() || `App ${g.appid}`,
     playtimeForeverMinutes: g.playtime_forever ?? 0,
+    playtime2WeeksMinutes: g.playtime_2weeks ?? 0,
+    lastPlayedAt:
+      typeof g.rtime_last_played === "number" && g.rtime_last_played > 0
+        ? g.rtime_last_played
+        : null,
     imgIconUrl: g.img_icon_url
       ? `https://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`
       : null,
