@@ -4,9 +4,13 @@ import { fetchIgdbGamesBySteamAppIds, hasIgdbCredentials } from "@/lib/igdb";
 import { allocateSteamHours } from "@/lib/steam-hours";
 import {
   fetchSteamOwnedGames,
+  fetchSteamStoreDetails,
+  fetchSteamWishlist,
   hasSteamCredentials,
+  isPlaceholderSteamTitle,
   steamMinutesToHours,
 } from "@/lib/steam";
+import { normalizeGamePrices } from "@/lib/game-prices";
 import type { UserGame, UserGamePlaythrough } from "@/lib/types";
 
 const STOREFRONTS = [
@@ -26,7 +30,7 @@ function normalizeStorefronts(value: unknown): (typeof STOREFRONTS)[number][] {
   );
 }
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST() {
   if (!hasSteamCredentials()) {
@@ -98,18 +102,79 @@ export async function POST() {
       if (g.rawg_id != null) byRawg.set(g.rawg_id, g);
     }
 
+    const wishlist = await fetchSteamWishlist(steamId);
+    const wishlistUnavailable = wishlist.unavailable;
+
+    const allSteamAppIds = [
+      ...steamGames.map((g) => g.appid),
+      ...wishlist.games.map((g) => g.appid),
+      ...existing
+        .filter(
+          (g) =>
+            g.steam_app_id != null &&
+            (isPlaceholderSteamTitle(g.title) || !g.cover_url || !g.rawg_id),
+        )
+        .map((g) => g.steam_app_id as number),
+    ];
+
     const igdbBySteam = hasIgdbCredentials()
-      ? await fetchIgdbGamesBySteamAppIds(steamGames.map((g) => g.appid))
+      ? await fetchIgdbGamesBySteamAppIds(allSteamAppIds)
       : new Map();
+
+    const wishlistAppIds = new Set(wishlist.games.map((g) => g.appid));
+
+    const needsStore = [
+      ...allSteamAppIds.filter((id) => {
+        const igdb = igdbBySteam.get(id);
+        const existingGame = bySteamApp.get(id);
+        if (!igdb?.title) return true;
+        if (existingGame && isPlaceholderSteamTitle(existingGame.title))
+          return true;
+        if (existingGame && !existingGame.cover_url && !igdb.coverUrl) return true;
+        return false;
+      }),
+      // Precios Steam de toda la wishlist
+      ...wishlist.games.map((g) => g.appid),
+    ];
+    const storeBySteam = await fetchSteamStoreDetails(needsStore);
 
     let created = 0;
     let updated = 0;
     let matched = 0;
     let unmatched = 0;
+    let wishlistCreated = 0;
+    let wishlistSkipped = 0;
+
+    function steamPricePatch(
+      appid: number,
+      currentPrices: unknown,
+    ): Record<string, number> | null {
+      const store = storeBySteam.get(appid);
+      if (store?.priceEur == null) return null;
+      const prices = normalizeGamePrices(currentPrices);
+      if (prices.steam === store.priceEur) return null;
+      return { ...prices, steam: store.priceEur };
+    }
+
+    function resolveMeta(appid: number, steamName?: string | null) {
+      const igdb = igdbBySteam.get(appid) ?? null;
+      const store = storeBySteam.get(appid) ?? null;
+      return {
+        igdb,
+        store,
+        title:
+          igdb?.title ||
+          store?.name ||
+          steamName?.trim() ||
+          `Steam ${appid}`,
+        coverUrl: igdb?.coverUrl || store?.coverUrl || null,
+      };
+    }
 
     for (const steamGame of steamGames) {
       const steamHours = steamMinutesToHours(steamGame.playtimeForeverMinutes);
-      const igdb = igdbBySteam.get(steamGame.appid) ?? null;
+      const meta = resolveMeta(steamGame.appid, steamGame.name);
+      const { igdb } = meta;
       if (igdb) matched += 1;
       else unmatched += 1;
 
@@ -125,8 +190,12 @@ export async function POST() {
         const steamOnly = [...storefronts].every((s) => s === "steam");
         const pts = playthroughsByGame.get(existingGame.id) ?? [];
 
+        // Si estaba en wishlist y ahora está en la biblioteca Steam → Sin empezar
+        const statusForHours =
+          existingGame.status === "wishlist" ? "owned" : existingGame.status;
+
         const allocation = allocateSteamHours({
-          status: existingGame.status,
+          status: statusForHours,
           steamHours,
           currentHours: Number(existingGame.hours_played) || 0,
           playStorefront: existingGame.play_storefront,
@@ -171,13 +240,19 @@ export async function POST() {
             existingGame.play_storefront ??
             (storefronts.size === 1 ? "steam" : existingGame.play_storefront),
         };
+        if (existingGame.status === "wishlist") {
+          patch.status = "owned";
+        }
         if (allocation.updateMainHours && allocation.mainHours != null) {
           patch.hours_played = allocation.mainHours;
         }
-        if (igdb && !existingGame.rawg_id) patch.rawg_id = igdb.rawgId;
-        if (igdb && !existingGame.cover_url && igdb.coverUrl) {
-          patch.cover_url = igdb.coverUrl;
+        if (isPlaceholderSteamTitle(existingGame.title) || !existingGame.title) {
+          patch.title = meta.title;
         }
+        if (!existingGame.cover_url && meta.coverUrl) {
+          patch.cover_url = meta.coverUrl;
+        }
+        if (igdb && !existingGame.rawg_id) patch.rawg_id = igdb.rawgId;
         if (
           igdb &&
           !(existingGame.developers?.length) &&
@@ -221,9 +296,9 @@ export async function POST() {
         user_id: user.id,
         rawg_id: igdb?.rawgId ?? null,
         steam_app_id: steamGame.appid,
-        title: igdb?.title ?? steamGame.name,
+        title: meta.title,
         developers: igdb?.developers ?? [],
-        cover_url: igdb?.coverUrl ?? null,
+        cover_url: meta.coverUrl,
         platforms: igdb?.platforms?.length ? igdb.platforms : ["PC (Steam)"],
         storefronts: ["steam"],
         play_storefront: null as string | null,
@@ -253,6 +328,102 @@ export async function POST() {
       }
     }
 
+    // Wishlist pública → estado wishlist (no toca juegos ya en biblioteca)
+    const wishlistNew = wishlist.games.filter((g) => !bySteamApp.has(g.appid));
+
+    for (const wish of wishlistNew) {
+      const meta = resolveMeta(wish.appid, wish.name);
+      const { igdb } = meta;
+      if (igdb) matched += 1;
+      else unmatched += 1;
+
+      if (igdb && byRawg.has(igdb.rawgId)) {
+        const existingByRawg = byRawg.get(igdb.rawgId)!;
+        if (!existingByRawg.steam_app_id) {
+          await supabase
+            .from("user_games")
+            .update({ steam_app_id: wish.appid })
+            .eq("id", existingByRawg.id);
+        }
+        wishlistSkipped += 1;
+        continue;
+      }
+
+      const steamPrices =
+        meta.store?.priceEur != null ? { steam: meta.store.priceEur } : {};
+
+      const insertRow = {
+        user_id: user.id,
+        rawg_id: igdb?.rawgId ?? null,
+        steam_app_id: wish.appid,
+        title: meta.title,
+        developers: igdb?.developers ?? [],
+        cover_url: meta.coverUrl,
+        platforms: igdb?.platforms?.length ? igdb.platforms : ["PC (Steam)"],
+        storefronts: [] as string[],
+        play_storefront: null as string | null,
+        released: igdb?.released ?? null,
+        metacritic: igdb?.metacritic ?? null,
+        status: "wishlist" as const,
+        hours_played: 0,
+        steam_hours_played: 0,
+        prices: steamPrices,
+        playtime_estimate: igdb?.playtimeEstimate ?? null,
+        start_date: null,
+        finish_date: null,
+        rating: null,
+      };
+
+      const { data: inserted, error } = await supabase
+        .from("user_games")
+        .insert(insertRow)
+        .select("*")
+        .single();
+
+      if (!error && inserted) {
+        wishlistCreated += 1;
+        const row = inserted as UserGame;
+        bySteamApp.set(wish.appid, row);
+        if (row.rawg_id != null) byRawg.set(row.rawg_id, row);
+      }
+    }
+
+    // Backfill fichas vacías + precio Steam en wishlist
+    for (const g of [...bySteamApp.values()]) {
+      if (g.steam_app_id == null) continue;
+      const meta = resolveMeta(
+        g.steam_app_id,
+        isPlaceholderSteamTitle(g.title) ? null : g.title,
+      );
+      const patch: Record<string, unknown> = {};
+      if (isPlaceholderSteamTitle(g.title)) patch.title = meta.title;
+      if (!g.cover_url && meta.coverUrl) patch.cover_url = meta.coverUrl;
+      if (!g.rawg_id && meta.igdb?.rawgId) patch.rawg_id = meta.igdb.rawgId;
+      if (!(g.developers?.length) && meta.igdb?.developers?.length) {
+        patch.developers = meta.igdb.developers;
+      }
+      if (!(g.platforms?.length) && meta.igdb?.platforms?.length) {
+        patch.platforms = meta.igdb.platforms;
+      }
+      if (g.status === "wishlist" || wishlistAppIds.has(g.steam_app_id)) {
+        const nextPrices = steamPricePatch(g.steam_app_id, g.prices);
+        if (nextPrices) patch.prices = nextPrices;
+      }
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabase
+        .from("user_games")
+        .update(patch)
+        .eq("id", g.id);
+      if (!error) {
+        updated += 1;
+        bySteamApp.set(g.steam_app_id, { ...g, ...patch } as UserGame);
+      }
+    }
+
+    if (!wishlist.unavailable && wishlistNew.length === 0) {
+      wishlistSkipped += wishlist.games.length;
+    }
+
     await supabase
       .from("profiles")
       .update({ steam_synced_at: new Date().toISOString() })
@@ -265,6 +436,10 @@ export async function POST() {
       updated,
       matched,
       unmatched,
+      wishlistTotal: wishlist.games.length,
+      wishlistCreated,
+      wishlistSkipped,
+      wishlistUnavailable,
       syncedAt: new Date().toISOString(),
     });
   } catch (e) {

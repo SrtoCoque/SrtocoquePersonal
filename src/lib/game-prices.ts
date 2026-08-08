@@ -2,7 +2,7 @@ import {
   GAME_STOREFRONTS,
   isGameStorefront,
   type GameStorefront,
-} from "@/components/games/game-storefront";
+} from "@/lib/game-storefronts";
 
 export type GamePrices = Partial<Record<GameStorefront, number>>;
 export type GamePricesDraft = Partial<Record<GameStorefront, number | "">>;

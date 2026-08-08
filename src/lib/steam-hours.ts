@@ -63,15 +63,16 @@ export function allocateSteamHours(input: {
   const pickMain = (allocated: number, fallback = currentHours) =>
     steamOnly ? Math.max(0, allocated) : Math.max(fallback, allocated);
 
-  if (status === "owned" || status === "wishlist") {
-    if (steamOnly) {
-      return {
-        steamSessionHours: session,
-        updateMainHours: true,
-        mainHours: session,
-      };
-    }
-    // Multi: las horas Steam no van al campo general hasta jugar en Steam
+  if (status === "owned") {
+    // Biblioteca / sin empezar: las horas de Steam van al juego aunque no esté «Jugando»
+    return {
+      steamSessionHours: session,
+      updateMainHours: true,
+      mainHours: pickMain(session),
+    };
+  }
+
+  if (status === "wishlist") {
     return { steamSessionHours: session, updateMainHours: false };
   }
 

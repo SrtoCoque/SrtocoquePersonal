@@ -229,11 +229,13 @@ limit ${limit};
     .map(({ _score: _, ...game }) => game);
 }
 
-/** IGDB external_games category 1 = Steam */
-const IGDB_STEAM_CATEGORY = 1;
+/** IGDB external_game_source 1 = Steam (antes se llamaba category) */
+const IGDB_STEAM_SOURCE = 1;
 
 type IgdbExternalGame = {
   uid?: string;
+  external_game_source?: number;
+  name?: string;
   game?: IgdbGame;
 };
 
@@ -255,13 +257,13 @@ export async function fetchIgdbGamesBySteamAppIds(
     const rows = await igdbQuery<IgdbExternalGame>(
       "external_games",
       `
-fields uid,
+fields uid, external_game_source, name,
   game.id, game.name, game.summary, game.first_release_date,
   game.aggregated_rating, game.aggregated_rating_count,
   game.rating, game.rating_count, game.total_rating, game.total_rating_count,
   game.cover.image_id, game.platforms.name, game.genres.name,
   game.involved_companies.developer, game.involved_companies.company.name;
-where category = ${IGDB_STEAM_CATEGORY} & uid = (${uids});
+where external_game_source = ${IGDB_STEAM_SOURCE} & uid = (${uids});
 limit ${chunk.length};
 `.trim(),
     );

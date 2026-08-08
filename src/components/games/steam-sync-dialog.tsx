@@ -112,16 +112,24 @@ export function SteamSyncDialog({ open, onOpenChange, onSynced }: Props) {
       totalSteam?: number;
       matched?: number;
       unmatched?: number;
+      wishlistCreated?: number;
+      wishlistTotal?: number;
+      wishlistUnavailable?: boolean;
     };
     setSyncing(false);
     if (!res.ok) {
       setError(data.error ?? "Error al sincronizar");
       return;
     }
+    const wishlistPart = data.wishlistUnavailable
+      ? " · wishlist no disponible (¿privada?)"
+      : ` · wishlist ${data.wishlistCreated ?? 0} nuevas` +
+        (data.wishlistTotal != null ? ` de ${data.wishlistTotal}` : "");
     setResult(
-      `Listo: ${data.totalSteam ?? 0} en Steam · ${data.created ?? 0} nuevos · ${data.updated ?? 0} actualizados` +
+      `Listo: ${data.totalSteam ?? 0} en biblioteca · ${data.created ?? 0} nuevos · ${data.updated ?? 0} actualizados` +
+        wishlistPart +
         (data.unmatched
-          ? ` · ${data.unmatched} sin ficha IGDB (se guardaron igual)`
+          ? ` · ${data.unmatched} sin ficha IGDB`
           : ""),
     );
     await loadStatus();
@@ -160,10 +168,9 @@ export function SteamSyncDialog({ open, onOpenChange, onSynced }: Props) {
         ) : (
           <>
             <p className="text-sm text-[var(--muted)]">
-              Importa la biblioteca y reparte horas de Steam: solo escribe en la
-              partida actual si el juego es solo Steam o si estás jugando en
-              Steam. Si juegas en otra tienda, las horas de Steam se guardan
-              aparte hasta que marques «Jugando en Steam». No cambia estados.
+              Importa biblioteca y wishlist pública, y reparte horas de Steam.
+              Cada vez que entras en Videojuegos se actualizan juegos, horas,
+              biblioteca y wishlist (si es pública).
             </p>
 
             {linked ? (

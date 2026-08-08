@@ -19,6 +19,10 @@ import {
 } from "@/components/games/game-storefront";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
+import {
+  normalizeGamePrices,
+  sumGamePrices,
+} from "@/lib/game-prices";
 import type { GameStatus, UserGame } from "@/lib/types";
 import { isGameOnShelf } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,6 +30,24 @@ import { cn } from "@/lib/utils";
 type FilterMode = "status" | "platform";
 type StatusFilter = "all" | "shelf" | GameStatus;
 type PlatformFilter = "all" | GameStorefront;
+
+/** Precio para ordenar wishlist; sin precio → Infinity (al final). */
+function wishlistSortPrice(game: UserGame): number {
+  const prices = normalizeGamePrices(game.prices);
+  if (prices.steam != null && Number.isFinite(prices.steam)) {
+    return prices.steam;
+  }
+  const total = sumGamePrices(prices);
+  return total > 0 ? total : Number.POSITIVE_INFINITY;
+}
+
+function sortWishlistByPrice(list: UserGame[]): UserGame[] {
+  return [...list].sort((a, b) => {
+    const diff = wishlistSortPrice(a) - wishlistSortPrice(b);
+    if (diff !== 0) return diff;
+    return a.title.localeCompare(b.title, "es");
+  });
+}
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "Todos" },
@@ -157,7 +179,7 @@ export function GamesLibraryView({
     });
   }, [games]);
   const wishlistGames = useMemo(
-    () => games.filter((g) => g.status === "wishlist"),
+    () => sortWishlistByPrice(games.filter((g) => g.status === "wishlist")),
     [games],
   );
   const shelfGames = useMemo(
@@ -179,6 +201,11 @@ export function GamesLibraryView({
     if (statusFilter === "playing") {
       return games.filter(
         (g) => g.status === "playing" || g.status === "replaying",
+      );
+    }
+    if (statusFilter === "wishlist") {
+      return sortWishlistByPrice(
+        games.filter((g) => g.status === "wishlist"),
       );
     }
     return games.filter((g) => g.status === statusFilter);

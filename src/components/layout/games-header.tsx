@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -8,6 +8,7 @@ import {
   Gamepad2,
   Home,
   Library,
+  Loader2,
   LogOut,
   Search,
 } from "lucide-react";
@@ -19,6 +20,15 @@ import { InlineHeaderSearch } from "@/components/layout/inline-header-search";
 import { SteamSyncDialog } from "@/components/games/steam-sync-dialog";
 import { GameStorefrontIcon } from "@/components/games/game-storefront";
 import { cn } from "@/lib/utils";
+
+const STEAM_AUTO_SYNC_MS = 60 * 60 * 1000;
+
+function shouldAutoSyncSteam(syncedAt: string | null | undefined): boolean {
+  if (!syncedAt) return true;
+  const t = Date.parse(syncedAt);
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t >= STEAM_AUTO_SYNC_MS;
+}
 
 export function GamesHeader({
   email,
@@ -59,10 +69,52 @@ function GamesHeaderBar({
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [steamOpen, setSteamOpen] = useState(false);
+  const [steamSyncing, setSteamSyncing] = useState(false);
+  const steamSyncInFlight = useRef(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname, searchParams]);
+
+  // Al entrar en Inicio: sync en segundo plano solo si lleva >1 h sin sincronizar
+  useEffect(() => {
+    if (pathname !== "/games") return;
+    if (steamSyncInFlight.current) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const linkRes = await fetch("/api/steam/link");
+        if (!linkRes.ok || cancelled) return;
+        const linkData = (await linkRes.json()) as {
+          steamId?: string | null;
+          syncedAt?: string | null;
+          configured?: boolean;
+        };
+        if (!linkData.configured || !linkData.steamId) return;
+        if (!shouldAutoSyncSteam(linkData.syncedAt)) return;
+        if (cancelled || steamSyncInFlight.current) return;
+
+        steamSyncInFlight.current = true;
+        setSteamSyncing(true);
+        try {
+          const syncRes = await fetch("/api/steam/sync", { method: "POST" });
+          if (syncRes.ok) onSteamSynced?.();
+        } finally {
+          steamSyncInFlight.current = false;
+          setSteamSyncing(false);
+        }
+      } catch {
+        /* silencioso: el usuario puede sync manual */
+        steamSyncInFlight.current = false;
+        setSteamSyncing(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname, onSteamSynced]);
 
   async function signOut() {
     const supabase = createClient();
@@ -142,12 +194,25 @@ function GamesHeaderBar({
               size="sm"
               variant="secondary"
               onClick={() => setSteamOpen(true)}
-              aria-label="Steam"
-              title="Vincular / sincronizar Steam"
+              aria-label={
+                steamSyncing ? "Sincronizando Steam" : "Steam"
+              }
+              title={
+                steamSyncing
+                  ? "Sincronizando Steam…"
+                  : "Vincular / sincronizar Steam"
+              }
+              disabled={steamSyncing}
               className="gap-1.5"
             >
-              <GameStorefrontIcon storefront="steam" className="h-4 w-4" />
-              <span className="hidden sm:inline">Steam</span>
+              {steamSyncing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <GameStorefrontIcon storefront="steam" className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">
+                {steamSyncing ? "Sincronizando" : "Steam"}
+              </span>
             </Button>
             <Button
               size="sm"
@@ -178,7 +243,7 @@ function GamesHeaderBar({
               onSignOut={signOut}
               extraActions={[
                 {
-                  label: "Steam",
+                  label: steamSyncing ? "Sincronizando Steam…" : "Steam",
                   onClick: () => setSteamOpen(true),
                 },
               ]}

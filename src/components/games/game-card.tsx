@@ -64,11 +64,13 @@ export function GameCard({
   const totalPaid = sumGamePrices(normalizeGamePrices(game.prices));
   const hours = Number(game.hours_played) || 0;
   const showHours =
-    (game.status === "playing" ||
+    (game.status === "owned" ||
+      game.status === "playing" ||
       game.status === "replaying" ||
       game.status === "completed" ||
       game.status === "dropped") &&
     hours > 0;
+  const showPrice = totalPaid > 0;
 
   return (
     <button
@@ -143,7 +145,7 @@ export function GameCard({
           </p>
         )}
 
-        {totalPaid > 0 || showHours || game.rating ? (
+        {showPrice || showHours || game.rating ? (
           <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1">
             {game.rating ? (
               <div className="flex items-center gap-0.5 text-amber-500">
@@ -152,8 +154,11 @@ export function GameCard({
                 ))}
               </div>
             ) : null}
-            {totalPaid > 0 ? (
-              <span className="text-[10px] text-[var(--muted)]">
+            {showPrice ? (
+              <span className="inline-flex items-center gap-1 text-[10px] text-[var(--muted)]">
+                {game.status === "wishlist" ? (
+                  <GameStorefrontIcon storefront="steam" className="h-3 w-3" />
+                ) : null}
                 {totalPaid.toLocaleString("es-ES", {
                   style: "currency",
                   currency: "EUR",

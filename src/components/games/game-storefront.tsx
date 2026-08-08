@@ -1,27 +1,25 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import {
+  GAME_STOREFRONT_LABELS,
+  GAME_STOREFRONTS,
+  formatStorefrontPrice,
+  toggleStorefront,
+  type GameStorefront,
+} from "@/lib/game-storefronts";
 
-export const GAME_STOREFRONTS = [
-  "steam",
-  "playstation",
-  "xbox",
-  "nintendo",
-  "gog",
-  "epic",
-  "downloaded",
-] as const;
-
-export type GameStorefront = (typeof GAME_STOREFRONTS)[number];
-
-export const GAME_STOREFRONT_LABELS: Record<GameStorefront, string> = {
-  steam: "Steam",
-  playstation: "PlayStation",
-  xbox: "Xbox",
-  nintendo: "Nintendo",
-  gog: "GOG",
-  epic: "Epic",
-  downloaded: "Descargado",
-};
+export {
+  GAME_STOREFRONT_LABELS,
+  GAME_STOREFRONTS,
+  formatStorefrontPrice,
+  isGameStorefront,
+  normalizeStorefronts,
+  storefrontsFromPlatformNames,
+  toggleStorefront,
+  type GameStorefront,
+} from "@/lib/game-storefronts";
 
 type IconProps = { className?: string };
 
@@ -113,71 +111,6 @@ export function GameStorefrontIcon({
 }) {
   const Icon = ICONS[storefront];
   return <Icon className={cn("h-5 w-5", className)} />;
-}
-
-export function isGameStorefront(value: unknown): value is GameStorefront {
-  return (
-    typeof value === "string" &&
-    (GAME_STOREFRONTS as readonly string[]).includes(value)
-  );
-}
-
-/** Normaliza array o valor singular legado. */
-export function normalizeStorefronts(value: unknown): GameStorefront[] {
-  if (Array.isArray(value)) {
-    return value.filter(isGameStorefront);
-  }
-  if (isGameStorefront(value)) return [value];
-  return [];
-}
-
-export function toggleStorefront(
-  current: GameStorefront[],
-  id: GameStorefront,
-): GameStorefront[] {
-  return current.includes(id)
-    ? current.filter((s) => s !== id)
-    : [...current, id];
-}
-
-/**
- * Infiere tiendas posibles a partir de los nombres de plataforma de IGDB.
- * Si no hay coincidencias claras, devuelve [].
- */
-export function storefrontsFromPlatformNames(
-  platforms: string[] | null | undefined,
-): GameStorefront[] {
-  if (!platforms?.length) return [];
-  const found = new Set<GameStorefront>();
-
-  for (const raw of platforms) {
-    const p = raw.toLowerCase();
-    if (/playstation|\bps\s?[1-5]\b|\bpsvita\b|\bpsp\b/.test(p)) {
-      found.add("playstation");
-    }
-    if (/xbox/.test(p)) found.add("xbox");
-    if (
-      /nintendo|switch|\bwii\b|3ds|gamecube|\bnes\b|\bsnes\b|game\s?boy|n64/.test(
-        p,
-      )
-    ) {
-      found.add("nintendo");
-    }
-    if (/steam/.test(p)) found.add("steam");
-    if (/\bgog\b/.test(p)) found.add("gog");
-    if (/epic/.test(p)) found.add("epic");
-    // PC genérico: posibles tiendas digitales de PC
-    if (
-      /\bpc\b|windows|microsoft windows|mac(os)?|os\s?x|linux/.test(p) &&
-      !/playstation|xbox|nintendo|switch/.test(p)
-    ) {
-      found.add("steam");
-      found.add("gog");
-      found.add("epic");
-    }
-  }
-
-  return GAME_STOREFRONTS.filter((id) => found.has(id));
 }
 
 /** Iconos compactos: marcadas (+ precio) y disponibles en gris. */
@@ -275,13 +208,6 @@ export function GameStorefrontChips({
   );
 }
 
-export function formatStorefrontPrice(value: number): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-  }).format(value);
-}
-
 export function GameStorefrontPicker({
   value,
   onChange,
@@ -343,17 +269,62 @@ export function GamePlayStorefrontPicker({
   onChange: (next: GameStorefront) => void;
   label?: string;
 }) {
-  if (options.length <= 1) return null;
+  const [editing, setEditing] = useState(false);
+
+  if (options.length <= 1) {
+    const only = options[0];
+    if (!only) return null;
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-[var(--muted)]">{label}</span>
+        <span
+          title={GAME_STOREFRONT_LABELS[only]}
+          className="inline-flex text-[var(--foreground)]"
+        >
+          <GameStorefrontIcon storefront={only} className="h-4 w-4" />
+        </span>
+      </div>
+    );
+  }
+
+  const showPicker = editing || !value;
+
+  if (!showPicker && value) {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-[var(--muted)]">{label}</span>
+        <span
+          title={GAME_STOREFRONT_LABELS[value]}
+          className="inline-flex text-[var(--foreground)]"
+        >
+          <GameStorefrontIcon storefront={value} className="h-4 w-4" />
+        </span>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="ml-auto text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+        >
+          Editar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium leading-none">{label}</p>
-      <div
-        className={cn(
-          "grid gap-2",
-          options.length <= 3 ? "grid-cols-3" : "grid-cols-4",
-        )}
-      >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-[var(--muted)]">{label}</p>
+        {value ? (
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+          >
+            Listo
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
         {options.map((id) => {
           const selected = value === id;
           return (
@@ -363,18 +334,18 @@ export function GamePlayStorefrontPicker({
               title={GAME_STOREFRONT_LABELS[id]}
               aria-label={GAME_STOREFRONT_LABELS[id]}
               aria-pressed={selected}
-              onClick={() => onChange(id)}
+              onClick={() => {
+                onChange(id);
+                setEditing(false);
+              }}
               className={cn(
-                "flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border transition-colors",
+                "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors",
                 selected
                   ? "border-[var(--accent)] bg-[var(--accent)]/12 text-[var(--accent)]"
                   : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]",
               )}
             >
-              <GameStorefrontIcon storefront={id} className="h-6 w-6" />
-              <span className="max-w-full truncate px-0.5 text-[9px] font-medium">
-                {GAME_STOREFRONT_LABELS[id]}
-              </span>
+              <GameStorefrontIcon storefront={id} className="h-4 w-4" />
             </button>
           );
         })}

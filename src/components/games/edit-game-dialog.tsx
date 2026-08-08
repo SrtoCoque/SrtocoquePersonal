@@ -588,10 +588,18 @@ export function EditGameDialog({
         storefronts: statusToSave === "wishlist" ? [] : storefronts,
         play_storefront:
           statusToSave === "wishlist" || !activeRun ? null : resolvedPlay,
-        hours_played: activeRun ? hoursPlayed : 0,
+        hours_played:
+          statusToSave === "wishlist"
+            ? 0
+            : statusToSave === "owned" || activeRun
+              ? hoursPlayed
+              : 0,
         prices:
           statusToSave === "wishlist"
-            ? {}
+            ? (() => {
+                const steam = normalizeGamePrices(game.prices).steam;
+                return steam != null ? { steam } : {};
+              })()
             : pricesDraftToDb(prices, storefronts),
         start_date: activeRun ? startDate || null : null,
         finish_date:
@@ -1069,7 +1077,7 @@ export function EditGameDialog({
                 </div>
                 {showDropFinishButton ? (
                   <div className="space-y-2">
-                    <Label>Finalizado</Label>
+                    <Label>Marcar finalizado como</Label>
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         type="button"
@@ -1085,7 +1093,7 @@ export function EditGameDialog({
                         disabled={busy}
                         onClick={beginDropPlaying}
                       >
-                        Sin terminar
+                        No lo voy a terminar
                       </Button>
                     </div>
                   </div>
