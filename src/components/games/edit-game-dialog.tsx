@@ -107,6 +107,15 @@ export function EditGameDialog({
   const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [editingStorefronts, setEditingStorefronts] = useState(false);
   const [editingProgress, setEditingProgress] = useState(false);
+  const [addPlayOpen, setAddPlayOpen] = useState(false);
+  const [playSnapshot, setPlaySnapshot] = useState<{
+    startDate: string;
+    finishDate: string;
+    hoursPlayed: number;
+    playStorefront: GameStorefront | null;
+    timesCompleted: number;
+    rating: number | "";
+  } | null>(null);
   const [coverOpen, setCoverOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +163,8 @@ export function EditGameDialog({
     setShowAllStatuses(false);
     setEditingStorefronts(false);
     setEditingProgress(false);
+    setAddPlayOpen(false);
+    setPlaySnapshot(null);
     setCoverOpen(false);
     setError(null);
   }, [game, open]);
@@ -209,18 +220,64 @@ export function EditGameDialog({
     const today = todayISO();
     const hadStartDate = Boolean(game?.start_date);
 
+    // Completado → Jugando = partida nueva (la anterior queda solo como referencia en UI)
     if (next === "playing" && status === "completed") {
+      const base =
+        addPlayOpen && playSnapshot
+          ? playSnapshot
+          : {
+              startDate,
+              finishDate,
+              hoursPlayed,
+              playStorefront,
+              timesCompleted,
+              rating,
+            };
+      if (addPlayOpen && playSnapshot) {
+        setTimesCompleted(playSnapshot.timesCompleted);
+        setRating(playSnapshot.rating);
+      }
+      setPlaySnapshot(base);
+      setAddPlayOpen(false);
       setStartDate(today);
       setHoursPlayed(0);
       setFinishDate("");
       setRating("");
       setDropFinishReady(false);
+      setEditingProgress(false);
+      setStatus(next);
+      return;
     }
+
+    // Jugando (partida nueva sin datos) → Completado = cancelar, no sumar ×1
+    if (next === "completed" && status === "playing" && playSnapshot) {
+      const untouched =
+        hoursPlayed === 0 &&
+        !finishDate &&
+        rating === "" &&
+        startDate === today;
+      if (untouched) {
+        setStartDate(playSnapshot.startDate);
+        setFinishDate(playSnapshot.finishDate);
+        setHoursPlayed(playSnapshot.hoursPlayed);
+        setPlayStorefront(playSnapshot.playStorefront);
+        setTimesCompleted(playSnapshot.timesCompleted);
+        setRating(playSnapshot.rating);
+        setPlaySnapshot(null);
+        setAddPlayOpen(false);
+        setDropFinishReady(false);
+        setStatus("completed");
+        return;
+      }
+    }
+
     if (next === "dropped") {
       setFinishDate((prev) => prev || today);
       setDropFinishReady(false);
     }
     if (next === "playing" && next !== status) {
+      setPlaySnapshot(null);
+      setAddPlayOpen(false);
       setDropFinishReady(false);
       setFinishDate("");
       if (!hadStartDate) {
@@ -236,9 +293,19 @@ export function EditGameDialog({
       setFinishDate((prev) => prev || today);
       setDropFinishReady(false);
       setTimesCompleted((prev) => {
+        // Cierre real de una partida nueva iniciada desde completado → jugando
+        if (status === "playing" && playSnapshot) {
+          return Math.max(prev, playSnapshot.timesCompleted) + 1;
+        }
         if (status === "playing" && prev >= 1) return prev + 1;
         return Math.max(prev, 1);
       });
+      setPlaySnapshot(null);
+      setAddPlayOpen(false);
+    }
+    if (next !== "completed" && next !== "playing") {
+      setPlaySnapshot(null);
+      setAddPlayOpen(false);
     }
     setStatus(next);
   }
@@ -251,8 +318,50 @@ export function EditGameDialog({
   function beginCompletePlaying() {
     setFinishDate(todayISO());
     setDropFinishReady(false);
-    setTimesCompleted((prev) => (prev >= 1 ? prev + 1 : 1));
+    setTimesCompleted((prev) => {
+      if (playSnapshot) {
+        return Math.max(prev, playSnapshot.timesCompleted) + 1;
+      }
+      if (prev >= 1) return prev + 1;
+      return 1;
+    });
+    setPlaySnapshot(null);
+    setAddPlayOpen(false);
     setStatus("completed");
+  }
+
+  function beginAddPlaythrough() {
+    if (!addPlayOpen) {
+      setPlaySnapshot({
+        startDate,
+        finishDate,
+        hoursPlayed,
+        playStorefront,
+        timesCompleted,
+        rating,
+      });
+      const today = todayISO();
+      setStartDate(today);
+      setFinishDate(today);
+      setHoursPlayed(0);
+      setAddPlayOpen(true);
+      setEditingProgress(false);
+      setDropFinishReady(false);
+    }
+    setTimesCompleted((n) => Math.max(1, n) + 1);
+  }
+
+  function cancelAddPlaythrough() {
+    if (playSnapshot) {
+      setStartDate(playSnapshot.startDate);
+      setFinishDate(playSnapshot.finishDate);
+      setHoursPlayed(playSnapshot.hoursPlayed);
+      setPlayStorefront(playSnapshot.playStorefront);
+      setTimesCompleted(playSnapshot.timesCompleted);
+      setRating(playSnapshot.rating);
+    }
+    setAddPlayOpen(false);
+    setPlaySnapshot(null);
   }
 
   async function handleSave() {
@@ -462,7 +571,21 @@ export function EditGameDialog({
   const viewingFinished = status === "completed" || status === "dropped";
   /** Ya estaba completado/abandonado: resumen + Editar, no inputs a la vista. */
   const progressAsInfo =
-    showProgress && savedFinished && viewingFinished && !editingProgress;
+    showProgress &&
+    savedFinished &&
+    viewingFinished &&
+    !editingProgress &&
+    !addPlayOpen;
+
+  const showPreviousRun = Boolean(
+    playSnapshot && (addPlayOpen || status === "playing"),
+  );
+  const summaryStart = showPreviousRun ? playSnapshot!.startDate : startDate;
+  const summaryFinish = showPreviousRun ? playSnapshot!.finishDate : finishDate;
+  const summaryHours = showPreviousRun ? playSnapshot!.hoursPlayed : hoursPlayed;
+  const summaryPlay = showPreviousRun
+    ? playSnapshot!.playStorefront
+    : playStorefront;
 
   function applyStorefronts(next: GameStorefront[]) {
     setStorefronts(next);
@@ -715,19 +838,21 @@ export function EditGameDialog({
             ) : null}
 
             {showProgress ? (
-              progressAsInfo ? (
+              progressAsInfo || showPreviousRun ? (
                 <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
-                      Partida
+                      {showPreviousRun ? "Partida anterior" : "Partida"}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setEditingProgress(true)}
-                      className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-                    >
-                      Editar
-                    </button>
+                    {!showPreviousRun ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditingProgress(true)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
                   </div>
                   <dl className="grid gap-2 text-sm sm:grid-cols-3">
                     <div>
@@ -735,8 +860,8 @@ export function EditGameDialog({
                         Horas jugadas
                       </dt>
                       <dd className="font-medium tabular-nums">
-                        {hoursPlayed > 0
-                          ? `${hoursPlayed.toLocaleString("es-ES", {
+                        {summaryHours > 0
+                          ? `${summaryHours.toLocaleString("es-ES", {
                               maximumFractionDigits: 1,
                             })} h`
                           : "—"}
@@ -745,7 +870,7 @@ export function EditGameDialog({
                     <div>
                       <dt className="text-[11px] text-[var(--muted)]">Inicio</dt>
                       <dd className="font-medium">
-                        {formatDisplayDate(startDate)}
+                        {formatDisplayDate(summaryStart)}
                       </dd>
                     </div>
                     <div>
@@ -753,21 +878,30 @@ export function EditGameDialog({
                         Finalizado
                       </dt>
                       <dd className="font-medium">
-                        {formatDisplayDate(finishDate)}
+                        {formatDisplayDate(summaryFinish)}
                       </dd>
                     </div>
                   </dl>
-                  {playStorefront ? (
+                  {summaryPlay ? (
                     <p className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
                       <GameStorefrontIcon
-                        storefront={playStorefront}
+                        storefront={summaryPlay}
                         className="h-3.5 w-3.5"
                       />
-                      {GAME_STOREFRONT_LABELS[playStorefront]}
+                      {GAME_STOREFRONT_LABELS[summaryPlay]}
                     </p>
                   ) : null}
                 </div>
-              ) : (
+              ) : null
+            ) : null}
+
+            {showProgress && status === "playing" && playSnapshot ? (
+              <p className="text-xs text-[var(--muted)]">
+                Partida nueva: al completar de nuevo sumará ×1.
+              </p>
+            ) : null}
+
+            {showProgress && !progressAsInfo && !addPlayOpen ? (
                 <div className="space-y-3">
                   {savedFinished && viewingFinished ? (
                     <div className="flex justify-end">
@@ -797,7 +931,7 @@ export function EditGameDialog({
                       id="hours-played"
                       type="number"
                       min={0}
-                      step={0.5}
+                      step={0.1}
                       value={hoursPlayed}
                       onChange={(e) => setHoursPlayed(Number(e.target.value))}
                     />
@@ -865,7 +999,6 @@ export function EditGameDialog({
                     ) : null}
                   </div>
                 </div>
-              )
             ) : null}
 
             {status !== "wishlist" &&
@@ -879,37 +1012,111 @@ export function EditGameDialog({
             ) : null}
 
             {status === "completed" ? (
-              <div className="space-y-2">
-                <Label>Veces pasados</Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-10 w-10 shrink-0 px-0"
-                    disabled={busy || timesCompleted <= 1}
-                    onClick={() =>
-                      setTimesCompleted((n) => Math.max(1, n - 1))
-                    }
-                    aria-label="Quitar una vez"
-                  >
-                    −
-                  </Button>
-                  <div className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm font-medium tabular-nums">
-                    Completado ×{Math.max(1, timesCompleted)}
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Veces pasados</Label>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-10 w-10 shrink-0 px-0"
+                      disabled={busy || addPlayOpen || timesCompleted <= 1}
+                      onClick={() =>
+                        setTimesCompleted((n) => Math.max(1, n - 1))
+                      }
+                      aria-label="Quitar una vez"
+                    >
+                      −
+                    </Button>
+                    <div className="flex h-10 min-w-0 flex-1 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm font-medium tabular-nums">
+                      Completado ×{Math.max(1, timesCompleted)}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-10 shrink-0 px-3"
+                      disabled={busy}
+                      onClick={beginAddPlaythrough}
+                      aria-label="Sumar una partida"
+                    >
+                      +1
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-10 shrink-0 px-3"
-                    disabled={busy}
-                    onClick={() => setTimesCompleted((n) => n + 1)}
-                    aria-label="Sumar una vez"
-                  >
-                    +1
-                  </Button>
                 </div>
+
+                {addPlayOpen ? (
+                  <div className="space-y-3 animate-fade-in rounded-xl border border-[var(--border)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">Nueva partida</p>
+                      <button
+                        type="button"
+                        onClick={cancelAddPlaythrough}
+                        className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    <GamePlayStorefrontPicker
+                      options={storefronts}
+                      value={playStorefront}
+                      onChange={(sf) => {
+                        setPlayStorefront(sf);
+                        if (sf === "steam") {
+                          const steamH = Number(game.steam_hours_played) || 0;
+                          if (steamH > hoursPlayed) setHoursPlayed(steamH);
+                        }
+                      }}
+                    />
+                    <div className="space-y-2">
+                      <Label htmlFor="new-play-hours">Horas jugadas</Label>
+                      <Input
+                        id="new-play-hours"
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        value={hoursPlayed}
+                        onChange={(e) =>
+                          setHoursPlayed(Number(e.target.value))
+                        }
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="new-play-start">Inicio</Label>
+                          <button
+                            type="button"
+                            onClick={() => setStartDate(todayISO())}
+                            className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                          >
+                            Hoy
+                          </button>
+                        </div>
+                        <Input
+                          id="new-play-start"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-play-finish">Finalizado</Label>
+                        <Input
+                          id="new-play-finish"
+                          type="date"
+                          value={finishDate}
+                          min={startDate || undefined}
+                          onChange={(e) => setFinishDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-[var(--muted)]">
+                      Al guardar, esta pasa a ser la partida de la ficha.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

@@ -218,7 +218,7 @@ export function GameDestinationFields({
                   type="number"
                   inputMode="decimal"
                   min={0}
-                  step={0.5}
+                  step={0.1}
                   placeholder="Ej. 12"
                   value={hoursPlayed}
                   onChange={(e) => {

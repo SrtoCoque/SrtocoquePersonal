@@ -31,6 +31,21 @@ import {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+function formatViewingDate(iso: string): string {
+  if (!iso) return "—";
+  try {
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    if (!y || !m || !d) return iso.slice(0, 10);
+    return new Intl.DateTimeFormat("es-ES", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(y, m - 1, d));
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
+
 type Props = {
   movie: UserMovie | null;
   open: boolean;
@@ -59,6 +74,8 @@ export function EditMovieDialog({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [editingScore, setEditingScore] = useState(false);
+  const [editingStatus, setEditingStatus] = useState(false);
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,6 +83,8 @@ export function EditMovieDialog({
     const upcoming = isUpcomingRelease(movie.released);
     setStatus(upcoming ? "wishlist" : movie.status);
     setScore(movie.score ?? "");
+    setEditingScore(movie.score == null);
+    setEditingStatus(false);
     setViewedAt(new Date().toISOString().slice(0, 10));
     setLocation("home");
     setError(null);
@@ -316,66 +335,151 @@ export function EditMovieDialog({
         </div>
 
         <div className="space-y-2">
-          <Label>Estado</Label>
           {upcoming ? (
-            <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
-              Aún no se ha estrenado
-              {formatReleaseDate(movie.released)
-                ? ` (${formatReleaseDate(movie.released)})`
-                : ""}
-              . Solo wishlist.
-            </p>
+            <>
+              <Label>Estado</Label>
+              <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
+                Aún no se ha estrenado
+                {formatReleaseDate(movie.released)
+                  ? ` (${formatReleaseDate(movie.released)})`
+                  : ""}
+                . Solo wishlist.
+              </p>
+            </>
+          ) : movie.status === "watched" &&
+            status === "watched" &&
+            !editingStatus ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5">
+              <p className="text-sm">
+                <span className="text-[var(--muted)]">Estado · </span>
+                <span className="font-medium">
+                  {MOVIE_STATUS_LABELS.watched}
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setEditingStatus(true)}
+                className="shrink-0 text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                Editar
+              </button>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {editStatuses.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={cn(
-                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                    status === s
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                      : "border-[var(--border)] hover:bg-[var(--surface-2)]",
-                  )}
-                >
-                  <span
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="mb-0">Estado</Label>
+                {movie.status === "watched" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus("watched");
+                      setEditingStatus(false);
+                    }}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:underline"
+                  >
+                    Listo
+                  </button>
+                ) : null}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {editStatuses.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setStatus(s)}
                     className={cn(
-                      "block text-sm font-medium",
-                      status === s ? "text-[var(--accent)]" : "",
+                      "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      status === s
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                        : "border-[var(--border)] hover:bg-[var(--surface-2)]",
                     )}
                   >
-                    {MOVIE_STATUS_LABELS[s]}
-                  </span>
-                </button>
-              ))}
-            </div>
+                    <span
+                      className={cn(
+                        "block text-sm font-medium",
+                        status === s ? "text-[var(--accent)]" : "",
+                      )}
+                    >
+                      {MOVIE_STATUS_LABELS[s]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
         {status === "watched" && !upcoming && (
           <>
-            <div className="space-y-2">
-              <Label htmlFor="movie-score-edit">Puntuación (0–100)</Label>
-              <Input
-                id="movie-score-edit"
-                type="number"
-                min={0}
-                max={100}
-                value={score}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === "") {
-                    setScore("");
-                    return;
-                  }
-                  const n = Number(v);
-                  if (!Number.isFinite(n)) return;
-                  setScore(Math.min(100, Math.max(0, n)));
-                }}
-                placeholder="Opcional"
-              />
-            </div>
+            {viewings.length > 0 ? (
+              <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5 text-sm text-[var(--muted)]">
+                Última vez:{" "}
+                <span className="font-medium text-[var(--foreground)]">
+                  {formatViewingDate(viewings[0].viewed_at)}
+                </span>
+                {" · "}
+                <span className="font-medium text-[var(--foreground)]">
+                  {MOVIE_WATCH_LOCATION_LABELS[viewings[0].location]}
+                </span>
+              </p>
+            ) : null}
+
+            {score !== "" && !editingScore ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2.5">
+                <p className="text-sm">
+                  <span className="text-[var(--muted)]">Puntuación · </span>
+                  <span className="font-medium tabular-nums">
+                    {score}
+                    <span className="text-[var(--muted)]">/100</span>
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEditingScore(true)}
+                  className="shrink-0 text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                >
+                  Editar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="movie-score-edit" className="mb-0">
+                    Puntuación (0–100)
+                  </Label>
+                  {score !== "" || movie.score != null ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScore(movie.score ?? score);
+                        setEditingScore(false);
+                      }}
+                      className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:underline"
+                    >
+                      Listo
+                    </button>
+                  ) : null}
+                </div>
+                <Input
+                  id="movie-score-edit"
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={score}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "") {
+                      setScore("");
+                      return;
+                    }
+                    const n = Number(v);
+                    if (!Number.isFinite(n)) return;
+                    setScore(Math.min(100, Math.max(0, n)));
+                  }}
+                  placeholder="Opcional"
+                />
+              </div>
+            )}
 
             <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 p-3">
               {viewings.length > 0 && !addViewOpen ? (

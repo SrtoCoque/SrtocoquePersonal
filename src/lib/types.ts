@@ -11,6 +11,8 @@ export type GameStatus =
 
 export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
 
+export type SeriesStatus = "wishlist" | "watching" | "watched";
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -205,6 +207,80 @@ export type TmdbMovieResult = {
   popularity?: number;
 };
 
+/** Episodios por temporada: `{ "1": 10, "2": 8 }` (claves string). */
+export type SeriesSeasonCounts = Record<string, number>;
+
+export type UserSeries = {
+  id: string;
+  user_id: string;
+  tmdb_id: number | null;
+  title: string;
+  original_title: string | null;
+  cover_url: string | null;
+  genres: string[];
+  providers: MovieProvider[];
+  first_air_date: string | null;
+  vote_average: number | null;
+  episode_run_time: number | null;
+  number_of_seasons: number | null;
+  season_counts: SeriesSeasonCounts;
+  status: SeriesStatus;
+  score: number | null;
+  created_at: string;
+  /** Episodios marcados (agregado en cliente). */
+  episodes_watched?: number;
+  /** Total episodios según season_counts. */
+  episodes_total?: number;
+};
+
+export type UserSeriesEpisode = {
+  id: string;
+  user_series_id: string;
+  user_id: string;
+  season_number: number;
+  episode_number: number;
+  name: string | null;
+  /** Fecha en que se marcó como visto (stats). */
+  viewed_at: string;
+  /** Duración en minutos (TMDB) al marcar. */
+  runtime: number | null;
+  created_at: string;
+};
+
+export type TmdbTvEpisode = {
+  episodeNumber: number;
+  name: string;
+  overview?: string;
+  runtime?: number | null;
+  airDate?: string | null;
+};
+
+export type TmdbTvSeason = {
+  seasonNumber: number;
+  name: string;
+  episodeCount: number;
+  coverUrl?: string | null;
+  episodes?: TmdbTvEpisode[];
+};
+
+export type TmdbTvResult = {
+  tmdbId: number;
+  title: string;
+  originalTitle: string | null;
+  coverUrl: string | null;
+  genres: string[];
+  firstAirDate: string | null;
+  voteAverage: number | null;
+  providers: MovieProvider[];
+  episodeRunTime: number | null;
+  numberOfSeasons: number | null;
+  seasonCounts: SeriesSeasonCounts;
+  seasons?: TmdbTvSeason[];
+  youtubeTrailerKey?: string | null;
+  overview?: string;
+  popularity?: number;
+};
+
 /** Enlace al trailer: YouTube directo si hay key TMDB; si no, búsqueda «título trailer». */
 export function movieTrailerHref(
   title: string,
@@ -327,6 +403,12 @@ export const MOVIE_WATCH_LOCATION_LABELS: Record<MovieWatchLocation, string> = {
   cinema: "En el cine",
 };
 
+export const SERIES_STATUS_LABELS: Record<SeriesStatus, string> = {
+  wishlist: "Wishlist",
+  watching: "Viendo",
+  watched: "Vista",
+};
+
 export type ShelfStatus = Extract<BookStatus, "owned" | "reading" | "read">;
 export type GameShelfStatus = Extract<
   GameStatus,
@@ -336,6 +418,7 @@ export type MovieShelfStatus = Extract<
   MovieStatus,
   "owned" | "watching" | "watched"
 >;
+export type SeriesShelfStatus = Extract<SeriesStatus, "watching" | "watched">;
 
 export const SHELF_STATUSES: ShelfStatus[] = ["owned", "reading", "read"];
 export const GAME_SHELF_STATUSES: GameShelfStatus[] = [
@@ -346,6 +429,10 @@ export const GAME_SHELF_STATUSES: GameShelfStatus[] = [
 ];
 export const MOVIE_SHELF_STATUSES: MovieShelfStatus[] = [
   "owned",
+  "watching",
+  "watched",
+];
+export const SERIES_SHELF_STATUSES: SeriesShelfStatus[] = [
   "watching",
   "watched",
 ];
@@ -367,6 +454,72 @@ export function normalizeGameStatus(status: string): GameStatus {
 
 export function isMovieOnShelf(status: MovieStatus): status is MovieShelfStatus {
   return MOVIE_SHELF_STATUSES.includes(status as MovieShelfStatus);
+}
+
+export function isSeriesOnShelf(
+  status: SeriesStatus,
+): status is SeriesShelfStatus {
+  return SERIES_SHELF_STATUSES.includes(status as SeriesShelfStatus);
+}
+
+export function parseSeriesSeasonCounts(raw: unknown): SeriesSeasonCounts {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: SeriesSeasonCounts = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (!Number.isFinite(n) || n < 0) continue;
+    out[String(k)] = Math.floor(n);
+  }
+  return out;
+}
+
+export function totalEpisodesFromCounts(counts: SeriesSeasonCounts): number {
+  return Object.values(counts).reduce(
+    (sum, n) => sum + (Number.isFinite(n) ? n : 0),
+    0,
+  );
+}
+
+/** Temporadas regulares (excluye especiales / T0). */
+export function regularSeasonCounts(
+  counts: SeriesSeasonCounts,
+): SeriesSeasonCounts {
+  return Object.fromEntries(
+    Object.entries(counts).filter(([k]) => k !== "0"),
+  );
+}
+
+export function totalRegularEpisodes(counts: SeriesSeasonCounts): number {
+  return totalEpisodesFromCounts(regularSeasonCounts(counts));
+}
+
+export function countRegularWatchedEpisodes(
+  episodes: Array<{ season_number: number }>,
+): number {
+  return episodes.filter((e) => e.season_number > 0).length;
+}
+
+/**
+ * Estado visible: Wishlist manual; Viendo/Vista según progreso de temporadas
+ * regulares (los especiales no impiden «Vista»).
+ */
+export function seriesDisplayStatus(
+  storedStatus: SeriesStatus,
+  watchedRegular: number,
+  totalRegular: number,
+): SeriesStatus {
+  if (storedStatus === "wishlist") return "wishlist";
+  if (totalRegular > 0 && watchedRegular >= totalRegular) return "watched";
+  return "watching";
+}
+
+/** Estado a persistir en estantería tras marcar/desmarcar episodios. */
+export function deriveSeriesShelfStatus(
+  watchedRegular: number,
+  totalRegular: number,
+): Extract<SeriesStatus, "watching" | "watched"> {
+  if (totalRegular > 0 && watchedRegular >= totalRegular) return "watched";
+  return "watching";
 }
 
 /** Persistir en `user_movies.providers` (TEXT[]): JSON o nombre legado. */

@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { BookCheck, BookOpen, FileText, Library } from "lucide-react";
-import { AppHeader } from "@/components/layout/app-header";
+import { CheckCircle2, Clock, ListVideo, Tv } from "lucide-react";
+import { SeriesHeader } from "@/components/layout/series-header";
 import {
   StatsYearFilter,
   collectYearsFromDates,
@@ -12,7 +12,14 @@ import {
   yearFromDate,
 } from "@/components/stats/stats-year-filter";
 import { createClient } from "@/lib/supabase/client";
-import type { UserBook } from "@/lib/types";
+import type { UserSeries, UserSeriesEpisode } from "@/lib/types";
+import {
+  countRegularWatchedEpisodes,
+  parseMovieProviders,
+  parseSeriesSeasonCounts,
+  seriesDisplayStatus,
+  totalRegularEpisodes,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const MONTHS = [
@@ -30,9 +37,9 @@ const MONTHS = [
   "Dic",
 ];
 
-type ChartMode = "read" | "pages" | "library";
+type ChartMode = "episodes" | "series" | "hours" | "completed";
 
-type ChartBook = {
+type ChartSeries = {
   key: string;
   title: string;
   cover_url: string | null;
@@ -40,7 +47,7 @@ type ChartBook = {
 
 type ChartBucket = {
   label: string;
-  books: ChartBook[];
+  series: ChartSeries[];
 };
 
 function monthFromDate(value: string | null | undefined): number | null {
@@ -49,151 +56,230 @@ function monthFromDate(value: string | null | undefined): number | null {
   return Number.isFinite(m) ? m : null;
 }
 
-export function StatsDashboard({
+function formatHours(minutes: number): string {
+  if (minutes <= 0) return "0";
+  const h = minutes / 60;
+  if (h < 10) return h.toFixed(1).replace(/\.0$/, "");
+  return Math.round(h).toLocaleString("es-ES");
+}
+
+export function SeriesStatsDashboard({
   userId,
   email,
 }: {
   userId: string;
   email: string | null;
 }) {
-  const [books, setBooks] = useState<UserBook[]>([]);
+  const [seriesList, setSeriesList] = useState<UserSeries[]>([]);
+  const [episodes, setEpisodes] = useState<UserSeriesEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<StatsPeriod>("all");
-  const [chartMode, setChartMode] = useState<ChartMode>("read");
+  const [chartMode, setChartMode] = useState<ChartMode>("episodes");
   const [hovered, setHovered] = useState<{
     label: string;
-    books: ChartBook[];
+    series: ChartSeries[];
   } | null>(null);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("user_books")
-        .select("*")
-        .eq("user_id", userId);
-      if (data) setBooks(data as UserBook[]);
+      const [{ data: seriesData }, { data: epData }] = await Promise.all([
+        supabase.from("user_series").select("*").eq("user_id", userId),
+        supabase.from("user_series_episodes").select("*").eq("user_id", userId),
+      ]);
+      if (seriesData) {
+        const eps = (epData as UserSeriesEpisode[]) ?? [];
+        setSeriesList(
+          (seriesData as UserSeries[]).map((s) => {
+            const seasonCounts = parseSeriesSeasonCounts(s.season_counts);
+            const seriesEps = eps.filter((e) => e.user_series_id === s.id);
+            const watched = countRegularWatchedEpisodes(seriesEps);
+            const total = totalRegularEpisodes(seasonCounts);
+            return {
+              ...s,
+              providers: parseMovieProviders(s.providers),
+              season_counts: seasonCounts,
+              episodes_watched: watched,
+              episodes_total: total,
+              status: seriesDisplayStatus(s.status, watched, total),
+            };
+          }),
+        );
+      }
+      if (epData) setEpisodes(epData as UserSeriesEpisode[]);
       setLoading(false);
     }
     load();
   }, [userId]);
 
+  const seriesById = useMemo(() => {
+    const map = new Map<string, UserSeries>();
+    for (const s of seriesList) map.set(s.id, s);
+    return map;
+  }, [seriesList]);
+
   const years = useMemo(
     () =>
-      collectYearsFromDates([
-        ...books.map((b) => b.read_finish_date),
-        ...books.map((b) => b.created_at),
-      ]),
-    [books],
+      collectYearsFromDates(
+        episodes.map((e) => e.viewed_at ?? e.created_at),
+      ),
+    [episodes],
   );
 
   const stats = useMemo(() => {
-    const read = books.filter((b) => b.status === "read");
-    const readInPeriod =
-      period === "all"
-        ? read
-        : read.filter((b) => yearFromDate(b.read_finish_date) === period);
+    function epDate(e: UserSeriesEpisode) {
+      return e.viewed_at ?? e.created_at;
+    }
 
-    const libraryInPeriod =
+    const filteredEps =
       period === "all"
-        ? books
-        : books.filter((b) => yearFromDate(b.created_at) === period);
+        ? episodes
+        : episodes.filter((e) => yearFromDate(epDate(e)) === period);
 
-    function toChartBook(b: UserBook): ChartBook {
+    const seriesIdsWithEps = new Set(filteredEps.map((e) => e.user_series_id));
+
+    const completedInPeriod = seriesList.filter((s) => {
+      if (s.status !== "watched") return false;
+      if (period === "all") return true;
+      return seriesIdsWithEps.has(s.id);
+    });
+
+    function chartFromId(id: string): ChartSeries {
+      const s = seriesById.get(id);
       return {
-        key: b.id,
-        title: b.title,
-        cover_url: b.cover_url,
+        key: id,
+        title: s?.title ?? "Serie",
+        cover_url: s?.cover_url ?? null,
       };
     }
 
-    function bucketsFromBooks(
-      list: UserBook[],
-      dateOf: (b: UserBook) => string | null | undefined,
-    ): ChartBucket[] {
+    function uniqueFromEps(list: UserSeriesEpisode[]): ChartSeries[] {
+      const seen = new Set<string>();
+      const out: ChartSeries[] = [];
+      for (const e of list) {
+        if (!e.user_series_id || seen.has(e.user_series_id)) continue;
+        seen.add(e.user_series_id);
+        out.push(chartFromId(e.user_series_id));
+      }
+      return out;
+    }
+
+    function bucketsFromEps(source: UserSeriesEpisode[]): ChartBucket[] {
       if (period === "all") {
         return years
           .slice()
           .reverse()
           .map((y) => ({
             label: String(y),
-            books: list
-              .filter((b) => yearFromDate(dateOf(b)) === y)
-              .map(toChartBook),
+            series: uniqueFromEps(
+              source.filter((e) => yearFromDate(epDate(e)) === y),
+            ),
           }))
-          .filter((b) => b.books.length > 0);
+          .filter((b) => b.series.length > 0);
       }
       return MONTHS.map((label, i) => ({
         label,
-        books: list
-          .filter((b) => monthFromDate(dateOf(b)) === i)
-          .map(toChartBook),
+        series: uniqueFromEps(
+          source.filter((e) => monthFromDate(epDate(e)) === i),
+        ),
       }));
     }
 
-    const readBuckets = bucketsFromBooks(
-      period === "all" ? read : readInPeriod,
-      (b) => b.read_finish_date,
-    );
-    const pagesBuckets = readBuckets;
-    const libraryBuckets = bucketsFromBooks(
-      period === "all" ? books : libraryInPeriod,
-      (b) => b.created_at,
-    );
+    function bucketsCompleted(): ChartBucket[] {
+      const source = completedInPeriod;
+      if (period === "all") {
+        return years
+          .slice()
+          .reverse()
+          .map((y) => ({
+            label: String(y),
+            series: source
+              .filter((s) => {
+                const eps = episodes.filter((e) => e.user_series_id === s.id);
+                if (eps.length === 0) {
+                  return yearFromDate(s.created_at) === y;
+                }
+                return eps.some((e) => yearFromDate(epDate(e)) === y);
+              })
+              .map((s) => chartFromId(s.id)),
+          }))
+          .filter((b) => b.series.length > 0);
+      }
+      return MONTHS.map((label, i) => ({
+        label,
+        series: source
+          .filter((s) => {
+            const eps = episodes.filter((e) => e.user_series_id === s.id);
+            if (eps.length === 0) return monthFromDate(s.created_at) === i;
+            return eps.some((e) => monthFromDate(epDate(e)) === i);
+          })
+          .map((s) => chartFromId(s.id)),
+      }));
+    }
 
-    const pagesFromRead = readInPeriod.reduce(
-      (sum, b) => sum + (b.total_pages ?? b.pages_read ?? 0),
-      0,
-    );
-    const pagesFromReading =
-      period === "all"
-        ? books
-            .filter((b) => b.status === "reading")
-            .reduce((sum, b) => sum + (b.pages_read ?? 0), 0)
-        : 0;
+    const episodeBuckets = bucketsFromEps(filteredEps);
+    const seriesBuckets = episodeBuckets;
+    const hoursBuckets = episodeBuckets;
+    const completedBuckets = bucketsCompleted();
+
+    const minutes = filteredEps.reduce((sum, e) => {
+      const own = Number(e.runtime);
+      if (Number.isFinite(own) && own > 0) return sum + own;
+      const s = seriesById.get(e.user_series_id);
+      return sum + (Number(s?.episode_run_time) || 0);
+    }, 0);
 
     return {
-      totalRead: readInPeriod.length,
-      totalPages: pagesFromRead + pagesFromReading,
-      libraryTotal:
-        period === "all" ? books.length : libraryInPeriod.length,
+      totalEpisodes: filteredEps.length,
+      uniqueSeries: seriesIdsWithEps.size,
+      completedCount: completedInPeriod.length,
+      minutes,
+      hoursLabel: formatHours(minutes),
       chartBuckets:
-        chartMode === "library"
-          ? libraryBuckets
-          : chartMode === "pages"
-            ? pagesBuckets
-            : readBuckets,
+        chartMode === "completed"
+          ? completedBuckets
+          : chartMode === "series"
+            ? seriesBuckets
+            : hoursBuckets,
     };
-  }, [books, period, years, chartMode]);
+  }, [
+    episodes,
+    seriesList,
+    seriesById,
+    period,
+    years,
+    chartMode,
+  ]);
 
   const coverTitle =
-    chartMode === "read"
+    chartMode === "episodes"
       ? period === "all"
-        ? "Leídos por año"
-        : `Leídos por mes · ${period}`
-      : chartMode === "pages"
+        ? "Episodios por año"
+        : `Episodios por mes · ${period}`
+      : chartMode === "series"
         ? period === "all"
-          ? "Páginas por año"
-          : `Páginas por mes · ${period}`
-        : period === "all"
-          ? "Añadidos a la biblioteca por año"
-          : `Añadidos a la biblioteca · ${period}`;
+          ? "Series con progreso por año"
+          : `Series con progreso · ${period}`
+        : chartMode === "hours"
+          ? period === "all"
+            ? "Horas por año"
+            : `Horas por mes · ${period}`
+          : period === "all"
+            ? "Completadas por año"
+            : `Completadas por mes · ${period}`;
 
   const coverHint =
-    chartMode === "read"
-      ? `Libros marcados como leídos según fecha de fin · ${periodLabel(period)}`
-      : chartMode === "pages"
-        ? `Libros terminados que aportan páginas · ${periodLabel(period)}`
-        : `Libros según el día en que los añadiste · ${periodLabel(period)}`;
-
-  const coverEmpty =
-    chartMode === "library"
-      ? "No hay libros añadidos en este periodo"
-      : "No hay lecturas en este periodo";
+    chartMode === "hours"
+      ? `Duración de cada capítulo · fecha en que lo marcaste · ${periodLabel(period)}`
+      : chartMode === "episodes"
+        ? `Según la fecha en que marcaste cada episodio · ${periodLabel(period)}`
+        : chartMode === "series"
+          ? `Series con progreso · ${periodLabel(period)}`
+          : `Series en estado Vista · ${periodLabel(period)}`;
 
   return (
     <div className="min-h-screen">
-      <AppHeader email={email} />
+      <SeriesHeader email={email} />
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-4">
@@ -201,7 +287,7 @@ export function StatsDashboard({
             Estadísticas
           </h1>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Resumen de tu actividad lectora
+            Resumen de tu progreso en series
           </p>
         </div>
 
@@ -212,8 +298,8 @@ export function StatsDashboard({
         />
 
         {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
                 className="h-28 animate-pulse rounded-2xl bg-[var(--surface-2)]"
@@ -222,29 +308,34 @@ export function StatsDashboard({
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-fade-in">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-fade-in">
               <StatCard
-                icon={BookCheck}
-                label={
-                  period === "all" ? "Leídos en total" : `Leídos en ${period}`
-                }
-                value={stats.totalRead}
-                active={chartMode === "read"}
-                onClick={() => setChartMode("read")}
+                icon={ListVideo}
+                label="Episodios marcados"
+                value={stats.totalEpisodes}
+                active={chartMode === "episodes"}
+                onClick={() => setChartMode("episodes")}
               />
               <StatCard
-                icon={FileText}
-                label="Páginas leídas"
-                value={stats.totalPages.toLocaleString("es-ES")}
-                active={chartMode === "pages"}
-                onClick={() => setChartMode("pages")}
+                icon={Tv}
+                label="Series con progreso"
+                value={stats.uniqueSeries}
+                active={chartMode === "series"}
+                onClick={() => setChartMode("series")}
               />
               <StatCard
-                icon={Library}
-                label="En la biblioteca"
-                value={stats.libraryTotal}
-                active={chartMode === "library"}
-                onClick={() => setChartMode("library")}
+                icon={Clock}
+                label="Horas estimadas"
+                value={stats.hoursLabel}
+                active={chartMode === "hours"}
+                onClick={() => setChartMode("hours")}
+              />
+              <StatCard
+                icon={CheckCircle2}
+                label="Series completadas"
+                value={stats.completedCount}
+                active={chartMode === "completed"}
+                onClick={() => setChartMode("completed")}
               />
             </div>
 
@@ -254,9 +345,9 @@ export function StatsDashboard({
               </h2>
               <p className="mb-6 text-sm text-[var(--muted)]">{coverHint}</p>
 
-              {stats.chartBuckets.every((b) => b.books.length === 0) ? (
+              {stats.chartBuckets.every((b) => b.series.length === 0) ? (
                 <p className="flex h-64 items-center justify-center text-sm text-[var(--muted)]">
-                  {coverEmpty}
+                  No hay actividad en este periodo
                 </p>
               ) : (
                 <div className="relative">
@@ -267,8 +358,8 @@ export function StatsDashboard({
                     )}
                   >
                     {stats.chartBuckets.map((bucket) => {
-                      const empty = bucket.books.length === 0;
-                      const compact = bucket.books.length > 5;
+                      const empty = bucket.series.length === 0;
+                      const compact = bucket.series.length > 5;
                       return (
                         <div
                           key={bucket.label}
@@ -282,7 +373,7 @@ export function StatsDashboard({
                             !empty &&
                             setHovered({
                               label: bucket.label,
-                              books: bucket.books,
+                              series: bucket.series,
                             })
                           }
                           onMouseLeave={() => setHovered(null)}
@@ -299,20 +390,20 @@ export function StatsDashboard({
                                   : "flex flex-col-reverse"),
                             )}
                           >
-                            {bucket.books.map((b) => (
+                            {bucket.series.map((s) => (
                               <div
-                                key={b.key}
-                                title={b.title}
+                                key={s.key}
+                                title={s.title}
                                 className={cn(
                                   "relative aspect-[2/3] overflow-hidden",
                                   !compact &&
                                     "w-full border-t border-black/20 first:border-t-0",
                                 )}
                               >
-                                {b.cover_url ? (
+                                {s.cover_url ? (
                                   <Image
-                                    src={b.cover_url}
-                                    alt={b.title}
+                                    src={s.cover_url}
+                                    alt={s.title}
                                     fill
                                     className="object-cover object-top"
                                     sizes={compact ? "48px" : "96px"}
@@ -320,7 +411,7 @@ export function StatsDashboard({
                                   />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center bg-[var(--surface-3)] text-[var(--muted)]">
-                                    <BookOpen
+                                    <Tv
                                       className={cn(
                                         "opacity-50",
                                         compact ? "h-3 w-3" : "h-5 w-5",
@@ -339,7 +430,7 @@ export function StatsDashboard({
                                     : "bottom-1 right-1 px-1.5 py-0.5 text-[10px]",
                                 )}
                               >
-                                {bucket.books.length}
+                                {bucket.series.length}
                               </span>
                             ) : null}
                           </div>
@@ -351,22 +442,22 @@ export function StatsDashboard({
                     })}
                   </div>
 
-                  {hovered && hovered.books.length > 0 ? (
+                  {hovered && hovered.series.length > 0 ? (
                     <div className="pointer-events-none absolute left-1/2 top-2 z-10 w-[min(100%,20rem)] -translate-x-1/2 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-lg">
                       <p className="mb-2 text-xs font-medium text-[var(--muted)]">
-                        {hovered.label} · {hovered.books.length}{" "}
-                        {hovered.books.length === 1 ? "libro" : "libros"}
+                        {hovered.label} · {hovered.series.length}{" "}
+                        {hovered.series.length === 1 ? "serie" : "series"}
                       </p>
                       <ul className="flex max-h-40 flex-col gap-1.5 overflow-y-auto">
-                        {hovered.books.map((b) => (
+                        {hovered.series.map((s) => (
                           <li
-                            key={b.key}
+                            key={s.key}
                             className="flex items-center gap-2 text-sm"
                           >
                             <span className="relative h-9 w-6 shrink-0 overflow-hidden rounded bg-[var(--surface-3)]">
-                              {b.cover_url ? (
+                              {s.cover_url ? (
                                 <Image
-                                  src={b.cover_url}
+                                  src={s.cover_url}
                                   alt=""
                                   fill
                                   className="object-cover"
@@ -375,11 +466,11 @@ export function StatsDashboard({
                                 />
                               ) : (
                                 <span className="flex h-full items-center justify-center">
-                                  <BookOpen className="h-3 w-3 opacity-40" />
+                                  <Tv className="h-3 w-3 opacity-40" />
                                 </span>
                               )}
                             </span>
-                            <span className="min-w-0 truncate">{b.title}</span>
+                            <span className="min-w-0 truncate">{s.title}</span>
                           </li>
                         ))}
                       </ul>
