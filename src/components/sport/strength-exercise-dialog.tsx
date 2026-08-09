@@ -278,6 +278,7 @@ export function StrengthExerciseDialog({
       {exercise ? (
         <form
           className="flex min-h-0 flex-1 flex-col"
+          data-skip-keyboard-nav
           onSubmit={handleSave}
         >
           <DialogBody className="space-y-3">

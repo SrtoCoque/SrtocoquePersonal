@@ -201,6 +201,16 @@ export function KeyboardFocusGuard() {
         hideTimer = null;
       }
       active = e.target;
+      // Formularios con su propia navegación (p. ej. series de deporte)
+      if (active.closest("[data-skip-keyboard-nav]")) {
+        setFocused(null);
+        setBarTop(null);
+        const skipScroll =
+          active.dataset.skipKeyboardScroll === "true" ||
+          !!active.closest("[data-skip-keyboard-scroll]");
+        if (!skipScroll) scheduleKeepVisible(active);
+        return;
+      }
       setFocused(active);
       refreshNav(active);
       syncBarPosition();

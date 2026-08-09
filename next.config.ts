@@ -31,6 +31,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "image.tmdb.org",
       },
+      {
+        protocol: "https",
+        hostname: "comicvine.gamespot.com",
+      },
+      {
+        protocol: "https",
+        hostname: "*.gamespot.com",
+      },
     ],
   },
 };

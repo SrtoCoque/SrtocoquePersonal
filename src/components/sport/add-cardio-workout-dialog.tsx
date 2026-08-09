@@ -144,7 +144,11 @@ export function AddCardioWorkoutDialog({
           {editing ? "Editar" : "Añadir"} · {meta?.title ?? "Cardio"}
         </DialogTitle>
       </DialogHeader>
-      <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSave}>
+      <form
+        className="flex min-h-0 flex-1 flex-col"
+        data-skip-keyboard-nav
+        onSubmit={handleSave}
+      >
         <DialogBody className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="cardio-distance">Distancia (km)</Label>

@@ -177,6 +177,13 @@ export function Dialog({ open, onOpenChange, children, className }: DialogProps)
         window.clearTimeout(blurTimer);
         blurTimer = null;
       }
+      if (
+        e.target instanceof HTMLElement &&
+        e.target.closest("[data-skip-keyboard-nav]")
+      ) {
+        setFieldFocused(false);
+        return;
+      }
       // Hueco solo si habrá barra de flechas
       setFieldFocused(countFields() >= 2);
     };

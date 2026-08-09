@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BookMarked,
   BookOpen,
   Clapperboard,
   Dumbbell,
@@ -89,6 +90,18 @@ const SECTIONS = [
     border: "border-amber-500/35 hover:border-amber-300/60",
     shadow: "hover:shadow-amber-900/30",
     iconBg: "bg-amber-400/25 text-amber-50",
+  },
+  {
+    href: "/comics",
+    title: "Cómics",
+    description: "Wishlist, leyendo y números",
+    icon: BookMarked,
+    available: true,
+    image: "/home/libros.jpg",
+    tint: "from-violet-950/90 via-violet-800/55 to-purple-700/35",
+    border: "border-violet-500/35 hover:border-violet-300/60",
+    shadow: "hover:shadow-violet-900/30",
+    iconBg: "bg-violet-400/25 text-violet-50",
   },
 ] as const;
 

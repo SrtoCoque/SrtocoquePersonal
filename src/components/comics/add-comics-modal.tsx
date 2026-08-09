@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Search } from "lucide-react";
+import { ArrowRight, BookMarked, Loader2, Search } from "lucide-react";
 import {
   Dialog,
   DialogBody,
@@ -13,21 +13,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
-  SeriesDestinationFields,
-  deriveDestinationFromMarks,
-  seriesDestinationToStatus,
-  type SeriesDestination,
-} from "@/components/series/series-destination-fields";
+  ComicsDestinationFields,
+  comicDestinationToStatus,
+  type ComicDestination,
+} from "@/components/comics/comics-destination-fields";
 import {
-  SeriesSeasonsPicker,
-  fetchRegularSeasonMarks,
-  type PendingEpisodeMark,
-} from "@/components/series/series-seasons-picker";
-import { enrichTmdbTv } from "@/components/series/enrich-series";
-import { insertUserSeries } from "@/components/series/insert-user-series";
-import { MovieTrailerButton } from "@/components/movies/movie-trailer-button";
-import { MovieProviderLogos } from "@/components/movies/movie-provider-logos";
-import type { TmdbTvResult } from "@/lib/types";
+  ComicsIssuesPicker,
+  fetchVolumeIssues,
+  issueToMark,
+  type PendingIssueMark,
+} from "@/components/comics/comics-issues-picker";
+import { ExpandableCover } from "@/components/comics/expandable-cover";
+import { enrichComicVolume } from "@/components/comics/enrich-comics";
+import { insertUserComic } from "@/components/comics/insert-user-comics";
+import type { ComicVineVolume } from "@/lib/types";
+import { deriveDestinationFromComicMarks } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -37,17 +37,15 @@ type Props = {
   onAdded: () => void;
 };
 
-export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
+export function AddComicsModal({ open, onOpenChange, userId, onAdded }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<TmdbTvResult[]>([]);
+  const [results, setResults] = useState<ComicVineVolume[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selected, setSelected] = useState<TmdbTvResult | null>(null);
+  const [selected, setSelected] = useState<ComicVineVolume | null>(null);
   const [enriching, setEnriching] = useState(false);
-  const [destination, setDestination] = useState<SeriesDestination | null>(
-    null,
-  );
-  const [marked, setMarked] = useState<PendingEpisodeMark[]>([]);
+  const [destination, setDestination] = useState<ComicDestination | null>(null);
+  const [marked, setMarked] = useState<PendingIssueMark[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,11 +78,11 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
       setError(null);
       try {
         const res = await fetch(
-          `/api/series/search?q=${encodeURIComponent(q)}&limit=6`,
+          `/api/comics/search?q=${encodeURIComponent(q)}&limit=6`,
           { signal: controller.signal },
         );
         const data = (await res.json()) as {
-          results?: TmdbTvResult[];
+          results?: ComicVineVolume[];
           error?: string;
         };
         if (!res.ok) throw new Error(data.error ?? "Error al buscar");
@@ -96,7 +94,7 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
-    }, 350);
+    }, 400);
 
     return () => {
       clearTimeout(timer);
@@ -104,57 +102,55 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
     };
   }, [query, open, selected]);
 
-  async function selectSeries(item: TmdbTvResult) {
+  async function selectComic(item: ComicVineVolume) {
     setSelected(item);
     setDestination(null);
     setMarked([]);
     setError(null);
     setEnriching(true);
-    const enriched = await enrichTmdbTv(item);
+    const enriched = await enrichComicVolume(item);
     setSelected(enriched);
     setEnriching(false);
   }
 
-  function handleDestinationChange(next: SeriesDestination) {
+  const issues = selected?.issues ?? [];
+
+  function handleDestinationChange(next: ComicDestination) {
     if (next === "wishlist") {
       setDestination("wishlist");
       setMarked([]);
       return;
     }
-    if (next === "watching") {
-      setDestination("watching");
+    if (next === "reading") {
+      setDestination("reading");
       return;
     }
-    // Vista: marcar todas las regulares
-    setDestination("watched");
-    if (!selected?.tmdbId) {
+    setDestination("read");
+    if (issues.length > 0) {
+      setMarked(issues.map(issueToMark));
+      return;
+    }
+    if (!selected?.comicvineId) {
       setMarked([]);
       return;
     }
     void (async () => {
-      const all = await fetchRegularSeasonMarks(
-        selected.tmdbId,
-        selected.seasons ?? [],
-      );
-      setMarked(all);
+      const all = await fetchVolumeIssues(selected.comicvineId);
+      setMarked(all.map(issueToMark));
     })();
   }
 
-  function handleMarkedChange(next: PendingEpisodeMark[]) {
+  function handleMarkedChange(next: PendingIssueMark[]) {
     setMarked(next);
     if (destination === "wishlist") return;
-    const derived = deriveDestinationFromMarks(
-      selected?.seasons ?? [],
-      next,
-    );
-    setDestination(derived);
+    setDestination(deriveDestinationFromComicMarks(issues, next));
   }
 
   function goToFullSearch() {
     const q = query.trim();
     if (q.length < 2) return;
     onOpenChange(false);
-    router.push(`/series/search?q=${encodeURIComponent(q)}`);
+    router.push(`/comics/search?q=${encodeURIComponent(q)}`);
   }
 
   async function handleSave() {
@@ -163,13 +159,13 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
     setSaving(true);
     setError(null);
 
-    const enriched = await enrichTmdbTv(selected);
-    const status = seriesDestinationToStatus(destination);
-    const { error: insertError } = await insertUserSeries({
+    const enriched = await enrichComicVolume(selected);
+    const status = comicDestinationToStatus(destination);
+    const { error: insertError } = await insertUserComic({
       userId,
-      series: enriched,
+      comic: enriched,
       status,
-      markedEpisodes: marked,
+      markedIssues: marked,
     });
 
     if (insertError) {
@@ -186,9 +182,9 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogHeader onClose={() => onOpenChange(false)}>
-        <DialogTitle>Añadir serie</DialogTitle>
+        <DialogTitle>Añadir cómic</DialogTitle>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          Busca por título · pulsa Buscar / Enter para ver más
+          Busca el volumen · pulsa Buscar / Enter para ver más
         </p>
       </DialogHeader>
 
@@ -207,7 +203,7 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Título de la serie..."
+                  placeholder="Título del cómic..."
                   className="pl-9"
                   autoFocus
                   autoComplete="off"
@@ -231,10 +227,10 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
             ) : results.length > 0 ? (
               <ul className="space-y-2">
                 {results.map((item) => (
-                  <li key={item.tmdbId}>
+                  <li key={item.comicvineId}>
                     <button
                       type="button"
-                      onClick={() => void selectSeries(item)}
+                      onClick={() => void selectComic(item)}
                       className="flex w-full gap-3 rounded-xl border border-[var(--border)] p-2 text-left transition-colors hover:bg-[var(--surface-2)]"
                     >
                       <div className="relative h-16 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--surface-3)]">
@@ -247,16 +243,19 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
                             sizes="44px"
                             unoptimized
                           />
-                        ) : null}
+                        ) : (
+                          <span className="flex h-full items-center justify-center text-[var(--muted)]">
+                            <BookMarked className="h-4 w-4 opacity-40" />
+                          </span>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-1 font-medium">{item.title}</p>
                         <p className="text-xs text-[var(--muted)]">
                           {[
-                            item.firstAirDate?.slice(0, 4),
-                            item.numberOfSeasons
-                              ? `${item.numberOfSeasons} temp.`
-                              : null,
+                            item.startYear ? String(item.startYear) : null,
+                            item.publisher,
+                            item.issueCount ? `${item.issueCount} núms.` : null,
                           ]
                             .filter(Boolean)
                             .join(" · ") || "—"}
@@ -292,52 +291,43 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
               onClick={() => setSelected(null)}
               className="text-xs text-[var(--muted)] underline-offset-2 hover:underline"
             >
-              ← Cambiar serie
+              ← Cambiar cómic
             </button>
             <div className="flex gap-4">
-              <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)]">
-                {selected.coverUrl ? (
-                  <Image
-                    src={selected.coverUrl}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="80px"
-                    unoptimized
-                  />
-                ) : null}
-              </div>
+              {selected.coverUrl ? (
+                <ExpandableCover
+                  src={selected.coverUrl}
+                  alt={selected.title}
+                  thumbClassName="h-28 w-20 shrink-0 rounded-lg"
+                  sizes="80px"
+                />
+              ) : (
+                <div className="relative flex h-28 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-3)] text-[var(--muted)]">
+                  <BookMarked className="h-6 w-6 opacity-40" />
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="font-[family-name:var(--font-display)] text-lg font-semibold leading-snug">
                   {selected.title}
                 </p>
                 <p className="mt-1 text-sm text-[var(--muted)]">
                   {[
-                    selected.firstAirDate?.slice(0, 4),
-                    selected.numberOfSeasons
-                      ? `${selected.numberOfSeasons} temp.`
-                      : null,
+                    selected.startYear ? String(selected.startYear) : null,
+                    selected.publisher,
+                    issues.length > 0
+                      ? `${issues.length} núms.`
+                      : selected.issueCount
+                        ? `${selected.issueCount} núms.`
+                        : null,
                   ]
                     .filter(Boolean)
-                    .join(" · ")}
+                    .join(" · ") || "Sin datos"}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <MovieProviderLogos
-                    providers={selected.providers}
-                    limit={4}
-                  />
-                  <MovieTrailerButton
-                    title={selected.title}
-                    youtubeKey={selected.youtubeTrailerKey}
-                    className="h-7"
-                  />
-                </div>
               </div>
             </div>
 
-            <SeriesSeasonsPicker
-              tmdbId={selected.tmdbId}
-              seasons={selected.seasons ?? []}
+            <ComicsIssuesPicker
+              issues={issues}
               loading={enriching}
               fallbackCoverUrl={selected.coverUrl}
               mode={destination === "wishlist" ? "readonly" : "pick"}
@@ -345,7 +335,7 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
               onMarkedChange={handleMarkedChange}
             />
 
-            <SeriesDestinationFields
+            <ComicsDestinationFields
               destination={destination}
               onDestinationChange={handleDestinationChange}
             />
@@ -368,10 +358,10 @@ export function AddSeriesModal({ open, onOpenChange, userId, onAdded }: Props) {
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               {destination === "wishlist"
                 ? "Añadir a Wishlist"
-                : destination === "watching"
+                : destination === "reading"
                   ? "Guardar"
-                  : destination === "watched"
-                    ? "Marcar como vista"
+                  : destination === "read"
+                    ? "Marcar como leído"
                     : "Elige una opción"}
             </Button>
           </form>

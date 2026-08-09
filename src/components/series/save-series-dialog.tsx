@@ -145,7 +145,7 @@ export function SaveSeriesDialog({
     destination === "wishlist"
       ? "Añadir a Wishlist"
       : destination === "watching"
-        ? "Empezar a ver"
+        ? "Guardar"
         : destination === "watched"
           ? "Marcar como vista"
           : "Elige una opción";

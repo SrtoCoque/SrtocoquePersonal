@@ -13,6 +13,8 @@ export type MovieStatus = "wishlist" | "owned" | "watching" | "watched";
 
 export type SeriesStatus = "wishlist" | "watching" | "watched";
 
+export type ComicStatus = "wishlist" | "reading" | "read";
+
 export type Profile = {
   id: string;
   email: string | null;
@@ -520,6 +522,109 @@ export function deriveSeriesShelfStatus(
 ): Extract<SeriesStatus, "watching" | "watched"> {
   if (totalRegular > 0 && watchedRegular >= totalRegular) return "watched";
   return "watching";
+}
+
+export type UserComic = {
+  id: string;
+  user_id: string;
+  comicvine_id: number | null;
+  title: string;
+  publisher: string | null;
+  cover_url: string | null;
+  start_year: number | null;
+  issue_count: number | null;
+  description: string | null;
+  status: ComicStatus;
+  score: number | null;
+  created_at: string;
+  /** Números marcados como leídos (agregado en cliente). */
+  issues_read?: number;
+  /** Total de números del volumen. */
+  issues_total?: number;
+};
+
+export type UserComicIssue = {
+  id: string;
+  user_comic_id: string;
+  user_id: string;
+  comicvine_issue_id: number;
+  issue_number: string | null;
+  name: string | null;
+  cover_url: string | null;
+  /** Fecha en que se marcó como leído (stats de lectura). */
+  read_at: string;
+  /** Coste en euros (opcional). */
+  price: number | null;
+  /** Fecha en que se apuntó el gasto (stats de dinero). */
+  purchased_at: string | null;
+  created_at: string;
+};
+
+export type ComicVineIssue = {
+  comicvineId: number;
+  issueNumber: string | null;
+  name: string | null;
+  coverUrl: string | null;
+  coverDate: string | null;
+};
+
+export type ComicVineVolume = {
+  comicvineId: number;
+  title: string;
+  publisher: string | null;
+  coverUrl: string | null;
+  startYear: number | null;
+  issueCount: number | null;
+  description: string | null;
+  siteDetailUrl?: string | null;
+  issues?: ComicVineIssue[];
+};
+
+export const COMIC_STATUS_LABELS: Record<ComicStatus, string> = {
+  wishlist: "Wishlist",
+  reading: "Leyendo",
+  read: "Leído",
+};
+
+export type ComicShelfStatus = Extract<ComicStatus, "reading" | "read">;
+
+export const COMIC_SHELF_STATUSES: ComicShelfStatus[] = ["reading", "read"];
+
+export function isComicOnShelf(status: ComicStatus): status is ComicShelfStatus {
+  return COMIC_SHELF_STATUSES.includes(status as ComicShelfStatus);
+}
+
+/**
+ * Estado visible: Wishlist es manual; Leyendo/Leído se derivan del progreso.
+ * Sin total conocido se respeta el estado guardado.
+ */
+export function comicDisplayStatus(
+  storedStatus: ComicStatus,
+  issuesRead: number,
+  issuesTotal: number,
+): ComicStatus {
+  if (storedStatus === "wishlist") return "wishlist";
+  if (issuesTotal <= 0) return storedStatus;
+  return issuesRead >= issuesTotal ? "read" : "reading";
+}
+
+/** Estado a persistir en estantería tras marcar/desmarcar números. */
+export function deriveComicShelfStatus(
+  issuesRead: number,
+  issuesTotal: number,
+): ComicShelfStatus {
+  if (issuesTotal > 0 && issuesRead >= issuesTotal) return "read";
+  return "reading";
+}
+
+/** Deriva Leyendo/Leído según los números marcados antes de guardar. */
+export function deriveDestinationFromComicMarks(
+  issues: Array<{ comicvineId: number }>,
+  marked: Array<{ comicvineId: number }>,
+): ComicShelfStatus | null {
+  if (marked.length === 0) return null;
+  if (issues.length === 0) return "reading";
+  return marked.length >= issues.length ? "read" : "reading";
 }
 
 /** Persistir en `user_movies.providers` (TEXT[]): JSON o nombre legado. */
