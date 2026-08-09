@@ -42,6 +42,8 @@ import {
   todayPlayedOn,
 } from "@/lib/game-hour-logs";
 import { lastPlayedOnDate } from "@/lib/game-last-played";
+import { GameAchievements } from "@/components/games/game-achievements";
+import { GameScoreBadges } from "@/components/games/game-score-badges";
 
 type Props = {
   game: UserGame | null;
@@ -60,6 +62,21 @@ function pickPlayStorefront(
   if (list.length === 1) return list[0];
   if (preferred && list.includes(preferred)) return preferred;
   return null;
+}
+
+function formatDisplayDate(iso: string): string {
+  if (!iso) return "—";
+  try {
+    const [y, m, d] = iso.split("-").map(Number);
+    if (!y || !m || !d) return iso;
+    return new Intl.DateTimeFormat("es-ES", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(y, m - 1, d));
+  } catch {
+    return iso;
+  }
 }
 
 function todayISO() {
@@ -89,6 +106,7 @@ export function EditGameDialog({
   const [dropFinishReady, setDropFinishReady] = useState(false);
   const [showAllStatuses, setShowAllStatuses] = useState(false);
   const [editingStorefronts, setEditingStorefronts] = useState(false);
+  const [editingProgress, setEditingProgress] = useState(false);
   const [coverOpen, setCoverOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +153,7 @@ export function EditGameDialog({
     );
     setShowAllStatuses(false);
     setEditingStorefronts(false);
+    setEditingProgress(false);
     setCoverOpen(false);
     setError(null);
   }, [game, open]);
@@ -437,6 +456,14 @@ export function EditGameDialog({
     dropFinishReady;
   const busy = saving || deleting;
 
+  const savedFinished =
+    normalizeGameStatus(game.status) === "completed" ||
+    normalizeGameStatus(game.status) === "dropped";
+  const viewingFinished = status === "completed" || status === "dropped";
+  /** Ya estaba completado/abandonado: resumen + Editar, no inputs a la vista. */
+  const progressAsInfo =
+    showProgress && savedFinished && viewingFinished && !editingProgress;
+
   function applyStorefronts(next: GameStorefront[]) {
     setStorefronts(next);
     setPrices(prunePricesDraft(prices, next));
@@ -534,6 +561,13 @@ export function EditGameDialog({
                         game.platforms.slice(0, 2).join(", ") ||
                         "—"}
                     </p>
+                    <GameScoreBadges
+                      metacritic={game.metacritic}
+                      steamReviewPercent={game.steam_review_percent}
+                      size="sm"
+                      labeled
+                      className="mt-1.5"
+                    />
                     {status === "wishlist" || fromWishlist ? (
                       status === "wishlist" ? (
                         <GameStorefrontChips
@@ -681,92 +715,167 @@ export function EditGameDialog({
             ) : null}
 
             {showProgress ? (
-              <div className="space-y-3">
-                <GamePlayStorefrontPicker
-                  options={storefronts}
-                  value={playStorefront}
-                  onChange={(sf) => {
-                    setPlayStorefront(sf);
-                    if (sf === "steam") {
-                      const steamH = Number(game.steam_hours_played) || 0;
-                      if (steamH > hoursPlayed) setHoursPlayed(steamH);
-                    }
-                  }}
-                />
-                <div className="space-y-2">
-                  <Label htmlFor="hours-played">Horas jugadas</Label>
-                  <Input
-                    id="hours-played"
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={hoursPlayed}
-                    onChange={(e) => setHoursPlayed(Number(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-3">
-                  <div
-                    className={cn(
-                      "grid gap-3",
-                      showFinishDate ? "grid-cols-2" : "grid-cols-1",
-                    )}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor="game-start">Inicio</Label>
-                        <button
-                          type="button"
-                          onClick={() => setStartDate(todayISO())}
-                          className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
-                        >
-                          Hoy
-                        </button>
-                      </div>
-                      <Input
-                        id="game-start"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                      />
+              progressAsInfo ? (
+                <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                      Partida
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setEditingProgress(true)}
+                      className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                  <dl className="grid gap-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <dt className="text-[11px] text-[var(--muted)]">
+                        Horas jugadas
+                      </dt>
+                      <dd className="font-medium tabular-nums">
+                        {hoursPlayed > 0
+                          ? `${hoursPlayed.toLocaleString("es-ES", {
+                              maximumFractionDigits: 1,
+                            })} h`
+                          : "—"}
+                      </dd>
                     </div>
-                    {showFinishDate ? (
+                    <div>
+                      <dt className="text-[11px] text-[var(--muted)]">Inicio</dt>
+                      <dd className="font-medium">
+                        {formatDisplayDate(startDate)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-[var(--muted)]">
+                        Finalizado
+                      </dt>
+                      <dd className="font-medium">
+                        {formatDisplayDate(finishDate)}
+                      </dd>
+                    </div>
+                  </dl>
+                  {playStorefront ? (
+                    <p className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                      <GameStorefrontIcon
+                        storefront={playStorefront}
+                        className="h-3.5 w-3.5"
+                      />
+                      {GAME_STOREFRONT_LABELS[playStorefront]}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedFinished && viewingFinished ? (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProgress(false)}
+                        className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+                      >
+                        Listo
+                      </button>
+                    </div>
+                  ) : null}
+                  <GamePlayStorefrontPicker
+                    options={storefronts}
+                    value={playStorefront}
+                    onChange={(sf) => {
+                      setPlayStorefront(sf);
+                      if (sf === "steam") {
+                        const steamH = Number(game.steam_hours_played) || 0;
+                        if (steamH > hoursPlayed) setHoursPlayed(steamH);
+                      }
+                    }}
+                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="hours-played">Horas jugadas</Label>
+                    <Input
+                      id="hours-played"
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={hoursPlayed}
+                      onChange={(e) => setHoursPlayed(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        showFinishDate ? "grid-cols-2" : "grid-cols-1",
+                      )}
+                    >
                       <div className="space-y-2">
-                        <Label htmlFor="game-finish">Finalizado</Label>
+                        <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="game-start">Inicio</Label>
+                          <button
+                            type="button"
+                            onClick={() => setStartDate(todayISO())}
+                            className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                          >
+                            Hoy
+                          </button>
+                        </div>
                         <Input
-                          id="game-finish"
+                          id="game-start"
                           type="date"
-                          value={finishDate}
-                          min={startDate || undefined}
-                          onChange={(e) => setFinishDate(e.target.value)}
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
                         />
+                      </div>
+                      {showFinishDate ? (
+                        <div className="space-y-2">
+                          <Label htmlFor="game-finish">Finalizado</Label>
+                          <Input
+                            id="game-finish"
+                            type="date"
+                            value={finishDate}
+                            min={startDate || undefined}
+                            onChange={(e) => setFinishDate(e.target.value)}
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                    {showDropFinishButton ? (
+                      <div className="space-y-2">
+                        <Label>Marcar finalizado como</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            type="button"
+                            className="h-10 w-full px-2 text-sm"
+                            disabled={busy}
+                            onClick={beginCompletePlaying}
+                          >
+                            Completado
+                          </Button>
+                          <Button
+                            type="button"
+                            className="h-10 w-full border-zinc-500 bg-zinc-600 px-2 text-sm text-white hover:bg-zinc-700"
+                            disabled={busy}
+                            onClick={beginDropPlaying}
+                          >
+                            No lo voy a terminar
+                          </Button>
+                        </div>
                       </div>
                     ) : null}
                   </div>
-                  {showDropFinishButton ? (
-                    <div className="space-y-2">
-                      <Label>Marcar finalizado como</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          type="button"
-                          className="h-10 w-full px-2 text-sm"
-                          disabled={busy}
-                          onClick={beginCompletePlaying}
-                        >
-                          Completado
-                        </Button>
-                        <Button
-                          type="button"
-                          className="h-10 w-full border-zinc-500 bg-zinc-600 px-2 text-sm text-white hover:bg-zinc-700"
-                          disabled={busy}
-                          onClick={beginDropPlaying}
-                        >
-                          No lo voy a terminar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
-              </div>
+              )
+            ) : null}
+
+            {status !== "wishlist" &&
+            game.steam_app_id != null &&
+            game.steam_app_id > 0 ? (
+              <GameAchievements
+                steamAppId={game.steam_app_id}
+                cachedUnlocked={game.steam_achievements_unlocked}
+                cachedTotal={game.steam_achievements_total}
+              />
             ) : null}
 
             {status === "completed" ? (

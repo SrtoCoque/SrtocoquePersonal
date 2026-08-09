@@ -28,6 +28,51 @@ export function steamLastPlayedOn(
   }
 }
 
+/** Hoy (YYYY-MM-DD) en Europe/Madrid. */
+export function todayOnMadrid(): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/**
+ * Elige la mejor fecha de última jugada.
+ * Steam a veces no mueve rtime_last_played aunque suban las horas;
+ * si hay actividad reciente, usamos hoy.
+ */
+export function resolveSteamLastPlayedDay(opts: {
+  apiLastPlayedUnix: number | null;
+  previousDay: string | null | undefined;
+  hoursIncreased: boolean;
+  inRecentlyPlayed: boolean;
+}): string | null {
+  const today = todayOnMadrid();
+  const fromApi = steamLastPlayedOn(opts.apiLastPlayedUnix);
+  const prev = opts.previousDay?.slice(0, 10) || null;
+
+  let best = prev;
+  if (fromApi && (!best || fromApi > best)) best = fromApi;
+
+  const apiDidNotAdvance =
+    !fromApi || (prev != null && fromApi <= prev);
+
+  if (
+    (opts.hoursIncreased || opts.inRecentlyPlayed) &&
+    apiDidNotAdvance
+  ) {
+    if (!best || best < today) best = today;
+  }
+
+  return best;
+}
+
 function steamApiKey(): string {
   const key = process.env.STEAM_WEB_API_KEY?.trim();
   if (!key) {
@@ -155,6 +200,36 @@ export async function fetchSteamOwnedGames(
       ? `https://media.steampowered.com/steamcommunity/public/images/apps/${g.appid}/${g.img_icon_url}.jpg`
       : null,
   }));
+}
+
+/** AppIDs jugados en las últimas ~2 semanas (Steam). */
+export async function fetchSteamRecentlyPlayedAppIds(
+  steamId64: string,
+): Promise<Set<number>> {
+  const key = steamApiKey();
+  const url = new URL(
+    "https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/",
+  );
+  url.searchParams.set("key", key);
+  url.searchParams.set("steamid", steamId64);
+  url.searchParams.set("count", "0");
+
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return new Set();
+    const data = (await res.json()) as {
+      response?: {
+        games?: Array<{ appid?: number }>;
+      };
+    };
+    const ids = new Set<number>();
+    for (const g of data.response?.games ?? []) {
+      if (typeof g.appid === "number" && g.appid > 0) ids.add(g.appid);
+    }
+    return ids;
+  } catch {
+    return new Set();
+  }
 }
 
 export type SteamStoreDetails = {
@@ -315,6 +390,135 @@ export type SteamAchievementsSummary = {
   total: number;
 };
 
+export type SteamAchievement = {
+  apiName: string;
+  name: string;
+  description: string;
+  unlocked: boolean;
+  /** Unix seconds; null si bloqueado o sin dato */
+  unlockTime: number | null;
+  icon: string | null;
+  iconGray: string | null;
+};
+
+export type SteamAchievementsDetail = {
+  achievements: SteamAchievement[];
+  unlocked: number;
+  total: number;
+};
+
+type SchemaAchievement = {
+  name?: string;
+  displayName?: string;
+  description?: string;
+  icon?: string;
+  icongray?: string;
+};
+
+async function fetchSteamAchievementSchema(
+  appid: number,
+): Promise<Map<string, SchemaAchievement>> {
+  const map = new Map<string, SchemaAchievement>();
+  try {
+    const key = steamApiKey();
+    const url = new URL(
+      "https://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/",
+    );
+    url.searchParams.set("key", key);
+    url.searchParams.set("appid", String(appid));
+    url.searchParams.set("l", "spanish");
+
+    const res = await fetch(url, { next: { revalidate: 86400 } });
+    if (!res.ok) return map;
+    const data = (await res.json()) as {
+      game?: {
+        availableGameStats?: {
+          achievements?: SchemaAchievement[];
+        };
+      };
+    };
+    for (const a of data.game?.availableGameStats?.achievements ?? []) {
+      if (a.name) map.set(a.name, a);
+    }
+  } catch {
+    /* schema opcional */
+  }
+  return map;
+}
+
+/** Logros del jugador en un appid (con iconos). null si privados / error. */
+export async function fetchSteamPlayerAchievements(
+  steamId64: string,
+  appid: number,
+): Promise<SteamAchievementsDetail | null> {
+  try {
+    const key = steamApiKey();
+    const url = new URL(
+      "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/",
+    );
+    url.searchParams.set("key", key);
+    url.searchParams.set("steamid", steamId64);
+    url.searchParams.set("appid", String(appid));
+    url.searchParams.set("l", "spanish");
+
+    const [playerRes, schema] = await Promise.all([
+      fetch(url, { cache: "no-store" }),
+      fetchSteamAchievementSchema(appid),
+    ]);
+    if (!playerRes.ok) return null;
+    const data = (await playerRes.json()) as {
+      playerstats?: {
+        success?: boolean;
+        achievements?: Array<{
+          apiname?: string;
+          achieved?: number;
+          unlocktime?: number;
+          name?: string;
+          description?: string;
+        }>;
+      };
+    };
+    if (!data.playerstats?.success || !data.playerstats.achievements) {
+      return null;
+    }
+
+    const achievements: SteamAchievement[] = data.playerstats.achievements.map(
+      (a) => {
+        const apiName = a.apiname ?? "";
+        const schemaRow = apiName ? schema.get(apiName) : undefined;
+        const unlocked = Number(a.achieved) === 1;
+        const unlockTime =
+          unlocked && a.unlocktime && a.unlocktime > 0 ? a.unlocktime : null;
+        return {
+          apiName,
+          name: (a.name || schemaRow?.displayName || apiName || "Logro").trim(),
+          description: (a.description || schemaRow?.description || "").trim(),
+          unlocked,
+          unlockTime,
+          icon: schemaRow?.icon?.trim() || null,
+          iconGray: schemaRow?.icongray?.trim() || null,
+        };
+      },
+    );
+
+    const total = achievements.length;
+    if (total === 0) return null;
+    const unlocked = achievements.filter((a) => a.unlocked).length;
+
+    achievements.sort((a, b) => {
+      if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+      if (a.unlocked && b.unlocked) {
+        return (b.unlockTime ?? 0) - (a.unlockTime ?? 0);
+      }
+      return a.name.localeCompare(b.name, "es");
+    });
+
+    return { achievements, unlocked, total };
+  } catch {
+    return null;
+  }
+}
+
 /** Resumen de logros del jugador en un appid. null si privados / error. */
 export async function fetchSteamAchievementsSummary(
   steamId64: string,
@@ -328,7 +532,6 @@ export async function fetchSteamAchievementsSummary(
     url.searchParams.set("key", key);
     url.searchParams.set("steamid", steamId64);
     url.searchParams.set("appid", String(appid));
-    url.searchParams.set("l", "spanish");
 
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) return null;

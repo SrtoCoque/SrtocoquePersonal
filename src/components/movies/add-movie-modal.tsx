@@ -200,6 +200,9 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
                   placeholder="Título o director..."
                   className="pl-9"
                   autoFocus
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  data-skip-keyboard-scroll="true"
                 />
                 {searching && (
                   <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--muted)]" />
@@ -210,7 +213,7 @@ export function AddMovieModal({ open, onOpenChange, userId, onAdded }: Props) {
               </Button>
             </form>
 
-            <ul className="max-h-72 space-y-1 overflow-y-auto">
+            <ul className="space-y-1">
               {results.map((movie) => (
                 <li key={movie.tmdbId}>
                   <button

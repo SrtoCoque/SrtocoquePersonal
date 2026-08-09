@@ -117,18 +117,18 @@ export function GameCard({
             ))}
           </span>
         ) : null}
-        {game.metacritic != null ? (
-          <MetacriticBadge
-            score={game.metacritic}
-            className="absolute right-2 top-2"
-          />
-        ) : null}
         {reviewPercent != null ? (
           <SteamRatingBadge
             percent={reviewPercent}
+            className="absolute right-2 top-2"
+          />
+        ) : null}
+        {game.metacritic != null ? (
+          <MetacriticBadge
+            score={game.metacritic}
             className={cn(
               "absolute right-2",
-              game.metacritic != null ? "top-11" : "top-2",
+              reviewPercent != null ? "top-11" : "top-2",
             )}
           />
         ) : null}

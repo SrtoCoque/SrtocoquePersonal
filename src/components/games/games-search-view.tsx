@@ -183,6 +183,9 @@ export function GamesSearchView({
               placeholder="Título del juego..."
               className="pl-9"
               autoFocus
+              autoComplete="off"
+              enterKeyHint="search"
+              data-skip-keyboard-scroll="true"
             />
           </div>
           <Button type="submit" disabled={query.trim().length < 2 || loading}>

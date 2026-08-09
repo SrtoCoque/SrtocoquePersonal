@@ -180,6 +180,9 @@ export function SearchResultsView({
               placeholder="Título, autor..."
               className="pl-9"
               autoFocus
+              autoComplete="off"
+              enterKeyHint="search"
+              data-skip-keyboard-scroll="true"
             />
           </div>
           <Button type="submit" disabled={query.trim().length < 2 || loading}>

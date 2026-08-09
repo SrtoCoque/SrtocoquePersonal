@@ -4,10 +4,12 @@ import { allocateSteamHours } from "@/lib/steam-hours";
 import {
   fetchSteamAchievementsSummary,
   fetchSteamOwnedGames,
+  fetchSteamRecentlyPlayedAppIds,
   fetchSteamStoreDetails,
   fetchSteamWishlist,
   hasSteamCredentials,
   isPlaceholderSteamTitle,
+  resolveSteamLastPlayedDay,
   steamLastPlayedOn,
   steamMinutesToHours,
   wishlistDateAddedOn,
@@ -114,7 +116,10 @@ export async function syncSteamLibraryForUser(
   const lastSteamSyncedAt = input.lastSyncedAt ?? null;
 
   try {
-    const steamGames = await fetchSteamOwnedGames(steamId);
+    const [steamGames, recentlyPlayedIds] = await Promise.all([
+      fetchSteamOwnedGames(steamId),
+      fetchSteamRecentlyPlayedAppIds(steamId),
+    ]);
     const { data: existingRows } = await supabase
       .from("user_games")
       .select("*")
@@ -302,15 +307,28 @@ export async function syncSteamLibraryForUser(
           status: statusForHours,
         });
 
+        const prevSteamHours = Number(existingGame.steam_hours_played) || 0;
+        const nextSteamHours = allocation.steamSessionHours;
+        const hoursIncreased = nextSteamHours > prevSteamHours + 0.049;
+        const inRecentlyPlayed = recentlyPlayedIds.has(steamGame.appid);
+        const lastPlayedDay = resolveSteamLastPlayedDay({
+          apiLastPlayedUnix: steamGame.lastPlayedAt,
+          previousDay: existingGame.steam_last_played_at,
+          hoursIncreased,
+          inRecentlyPlayed,
+        });
+
         const patch: Record<string, unknown> = {
           steam_app_id: steamGame.appid,
           storefronts: [...storefronts],
           steam_hours_played: allocation.steamSessionHours,
-          steam_last_played_at: steamLastPlayedOn(steamGame.lastPlayedAt),
           play_storefront:
             existingGame.play_storefront ??
             (storefronts.size === 1 ? "steam" : existingGame.play_storefront),
         };
+        if (lastPlayedDay) {
+          patch.steam_last_played_at = lastPlayedDay;
+        }
         if (existingGame.status === "wishlist") {
           patch.status = "owned";
         }
@@ -345,7 +363,7 @@ export async function syncSteamLibraryForUser(
             hoursBefore,
             hoursAfter,
             lastSyncedAt: lastSteamSyncedAt,
-            lastPlayedOn: steamLastPlayedOn(steamGame.lastPlayedAt),
+            lastPlayedOn: lastPlayedDay,
             playtime2WeeksHours: steamMinutesToHours(
               steamGame.playtime2WeeksMinutes,
             ),
@@ -376,6 +394,14 @@ export async function syncSteamLibraryForUser(
         continue;
       }
 
+      const insertLastPlayed =
+        resolveSteamLastPlayedDay({
+          apiLastPlayedUnix: steamGame.lastPlayedAt,
+          previousDay: null,
+          hoursIncreased: steamHours > 0,
+          inRecentlyPlayed: recentlyPlayedIds.has(steamGame.appid),
+        }) ?? steamLastPlayedOn(steamGame.lastPlayedAt);
+
       const insertRow = {
         user_id: userId,
         rawg_id: igdb?.rawgId ?? null,
@@ -393,7 +419,7 @@ export async function syncSteamLibraryForUser(
         status: "owned" as const,
         hours_played: steamHours,
         steam_hours_played: steamHours,
-        steam_last_played_at: steamLastPlayedOn(steamGame.lastPlayedAt),
+        steam_last_played_at: insertLastPlayed,
         prices: {},
         playtime_estimate: igdb?.playtimeEstimate ?? null,
         start_date: null,
@@ -420,7 +446,7 @@ export async function syncSteamLibraryForUser(
             hoursBefore: 0,
             hoursAfter: steamHours,
             lastSyncedAt: null,
-            lastPlayedOn: steamLastPlayedOn(steamGame.lastPlayedAt),
+            lastPlayedOn: insertLastPlayed,
             playtime2WeeksHours: steamMinutesToHours(
               steamGame.playtime2WeeksMinutes,
             ),

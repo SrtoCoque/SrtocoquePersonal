@@ -78,21 +78,24 @@ function useKeyboardViewport(open: boolean) {
 
     const vv = window.visualViewport;
     const sync = () => {
-      if (vv) {
-        setFrame({ height: vv.height, offsetTop: vv.offsetTop });
-      } else {
-        setFrame({ height: window.innerHeight, offsetTop: 0 });
-      }
+      const next = vv
+        ? { height: vv.height, offsetTop: vv.offsetTop }
+        : { height: window.innerHeight, offsetTop: 0 };
+      setFrame((prev) =>
+        prev.height === next.height && prev.offsetTop === next.offsetTop
+          ? prev
+          : next,
+      );
     };
 
     sync();
+    // resize = teclado; scroll del visualViewport al hacer scroll en el sheet
+    // no debe re-renderizar el overlay (provoca saltos al inicio en iOS).
     vv?.addEventListener("resize", sync);
-    vv?.addEventListener("scroll", sync);
     window.addEventListener("resize", sync);
 
     return () => {
       vv?.removeEventListener("resize", sync);
-      vv?.removeEventListener("scroll", sync);
       window.removeEventListener("resize", sync);
     };
   }, [open]);

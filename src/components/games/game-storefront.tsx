@@ -113,7 +113,7 @@ export function GameStorefrontIcon({
   return <Icon className={cn("h-5 w-5", className)} />;
 }
 
-/** Iconos compactos: marcadas (+ precio) y disponibles en gris. */
+/** Iconos compactos: contraídos por defecto; al pulsar se despliegan todos. */
 export function GameStorefrontChips({
   owned,
   available,
@@ -124,9 +124,11 @@ export function GameStorefrontChips({
   owned: GameStorefront[];
   available?: GameStorefront[];
   prices?: Partial<Record<GameStorefront, number | "">>;
+  /** Editar tiendas (solo visible / usable con la lista desplegada). */
   onClick?: () => void;
   className?: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const ownedSet = new Set(owned);
   const extras = (available ?? []).filter((id) => !ownedSet.has(id));
   const ids = [...owned, ...extras];
@@ -146,13 +148,56 @@ export function GameStorefrontChips({
     );
   }
 
+  const showCollapse = ids.length > 1 || extras.length > 0;
+
+  if (showCollapse && !expanded) {
+    const stack = (owned.length > 0 ? owned : ids).slice(0, 4);
+    const hidden = Math.max(0, ids.length - stack.length);
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        aria-expanded={false}
+        aria-label={`Ver tiendas (${ids.length})`}
+        title="Ver todas las tiendas"
+        className={cn(
+          "mt-1 inline-flex items-center gap-1.5 rounded-md py-0.5 text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+          className,
+        )}
+      >
+        <span className="flex items-center pl-0.5">
+          {stack.map((id, i) => {
+            const isOwned = ownedSet.has(id);
+            return (
+              <span
+                key={id}
+                title={GAME_STOREFRONT_LABELS[id]}
+                className={cn(
+                  "relative inline-flex rounded-full bg-[var(--surface)] p-0.5 ring-1 ring-[var(--border)]",
+                  isOwned
+                    ? "text-[var(--foreground)]"
+                    : "text-[var(--muted)] opacity-50",
+                )}
+                style={{ marginLeft: i === 0 ? 0 : -6, zIndex: stack.length - i }}
+              >
+                <GameStorefrontIcon storefront={id} className="h-3.5 w-3.5" />
+              </span>
+            );
+          })}
+        </span>
+        {hidden > 0 ? (
+          <span className="text-[10px] font-medium tabular-nums text-[var(--muted)]">
+            +{hidden}
+          </span>
+        ) : extras.length > 0 ? (
+          <span className="text-[10px] text-[var(--muted)]">más</span>
+        ) : null}
+      </button>
+    );
+  }
+
   const inner = (
-    <span
-      className={cn(
-        "mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]",
-        className,
-      )}
-    >
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
       {ids.map((id) => {
         const isOwned = ownedSet.has(id);
         const raw = prices?.[id];
@@ -193,18 +238,30 @@ export function GameStorefrontChips({
     </span>
   );
 
-  if (!onClick) return inner;
-
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="Editar tiendas y precios"
-      title="Editar tiendas y precios"
-      className="rounded-md text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-    >
-      {inner}
-    </button>
+    <div className={cn("mt-1 space-y-1", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        {inner}
+        {showCollapse ? (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="shrink-0 text-[10px] text-[var(--muted)] underline-offset-2 hover:text-[var(--foreground)] hover:underline"
+          >
+            Contraer
+          </button>
+        ) : null}
+      </div>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="text-[11px] font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+        >
+          Editar tiendas y precios
+        </button>
+      ) : null}
+    </div>
   );
 }
 

@@ -55,6 +55,7 @@ export function EditMovieDialog({
   const [location, setLocation] = useState<MovieWatchLocation>("home");
   const [saving, setSaving] = useState(false);
   const [addingView, setAddingView] = useState(false);
+  const [addViewOpen, setAddViewOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -69,6 +70,7 @@ export function EditMovieDialog({
     setLocation("home");
     setError(null);
     setHistoryOpen(false);
+    setAddViewOpen(false);
     setTrailerKey(null);
 
     async function loadViewings() {
@@ -194,6 +196,9 @@ export function EditMovieDialog({
 
     setStatus("watched");
     setViewings((prev) => [data as UserMovieViewing, ...prev]);
+    setAddViewOpen(false);
+    setViewedAt(new Date().toISOString().slice(0, 10));
+    setLocation("home");
     onSaved();
   }
 
@@ -373,66 +378,95 @@ export function EditMovieDialog({
             </div>
 
             <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="mb-0">
-                  {viewings.length === 0 ? "Primer visionado" : "Añadir +1 vista"}
-                </Label>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="add-viewed-at">Fecha</Label>
-                <Input
-                  id="add-viewed-at"
-                  type="date"
-                  value={viewedAt}
-                  onChange={(e) => setViewedAt(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Lugar</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      { id: "home" as const, icon: Home },
-                      { id: "cinema" as const, icon: Popcorn },
-                    ] as const
-                  ).map(({ id, icon: Icon }) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setLocation(id)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
-                        location === id
-                          ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                          : "border-[var(--border)] hover:bg-[var(--surface)]",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span className="text-sm">
-                        {MOVIE_WATCH_LOCATION_LABELS[id]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {viewings.length > 0 && (
+              {viewings.length > 0 && !addViewOpen ? (
                 <Button
                   type="button"
                   variant="secondary"
                   className="w-full"
-                  onClick={handleAddViewing}
+                  onClick={() => {
+                    setViewedAt(new Date().toISOString().slice(0, 10));
+                    setLocation("home");
+                    setAddViewOpen(true);
+                  }}
                   disabled={addingView || saving || deleting}
                 >
-                  {addingView ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  +1 vista
+                  <Plus className="h-4 w-4" />
+                  Añadir +1 vista
                 </Button>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="mb-0">
+                      {viewings.length === 0
+                        ? "Primer visionado"
+                        : "Nueva vista"}
+                    </Label>
+                    {viewings.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setAddViewOpen(false)}
+                        className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="add-viewed-at">Fecha</Label>
+                    <Input
+                      id="add-viewed-at"
+                      type="date"
+                      value={viewedAt}
+                      onChange={(e) => setViewedAt(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Lugar</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(
+                        [
+                          { id: "home" as const, icon: Home },
+                          { id: "cinema" as const, icon: Popcorn },
+                        ] as const
+                      ).map(({ id, icon: Icon }) => (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setLocation(id)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
+                            location === id
+                              ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                              : "border-[var(--border)] hover:bg-[var(--surface)]",
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span className="text-sm">
+                            {MOVIE_WATCH_LOCATION_LABELS[id]}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {viewings.length > 0 ? (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={handleAddViewing}
+                      disabled={addingView || saving || deleting}
+                    >
+                      {addingView ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Confirmar +1 vista
+                    </Button>
+                  ) : null}
+                </>
               )}
             </div>
 

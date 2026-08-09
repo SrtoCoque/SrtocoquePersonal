@@ -10,7 +10,6 @@ import {
   Library,
   LogOut,
   Search,
-  Sparkles,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -80,12 +79,6 @@ function MoviesHeaderBar({
       label: "Biblioteca",
       icon: Library,
       active: onMoviesShelf,
-    },
-    {
-      href: "/movies/recommended",
-      label: "Recomendados",
-      icon: Sparkles,
-      active: pathname.startsWith("/movies/recommended"),
     },
     {
       href: "/movies/stats",

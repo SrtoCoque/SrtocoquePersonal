@@ -87,8 +87,9 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Solo mueve el scroll si el campo queda tapado por el teclado.
- * No recentra campos ya visibles (evita el “petardeo” en el buscador del header).
+ * Solo mueve el scroll si el teclado tapa el campo por abajo.
+ * Nunca recentra hacia arriba: si el usuario hace scroll en un modal/lista
+ * con el input enfocado, no lo devolvemos al inicio.
  */
 function scrollFieldIntoView(el: HTMLElement) {
   if (el.dataset.skipKeyboardScroll === "true") return;
@@ -100,7 +101,6 @@ function scrollFieldIntoView(el: HTMLElement) {
   const vvTop = vv?.offsetTop ?? 0;
   const vvBottom = vvTop + (vv?.height ?? window.innerHeight);
   const safeBottom = vvBottom - KBD_ACCESSORY_H - 12;
-  const safeTop = vvTop + 8;
 
   const place = () => {
     if (document.activeElement !== el) return;
@@ -108,30 +108,17 @@ function scrollFieldIntoView(el: HTMLElement) {
     const rect = el.getBoundingClientRect();
     const parentRect = scrollParent?.getBoundingClientRect() ?? null;
 
-    const visibleTop = parentRect
-      ? Math.max(safeTop, parentRect.top + 4)
-      : safeTop;
     const visibleBottom = parentRect
       ? Math.min(safeBottom, parentRect.bottom - 4)
       : safeBottom;
 
-    // Ya cabe entero en la zona útil → no tocar el scroll
-    if (rect.top >= visibleTop - 1 && rect.bottom <= visibleBottom + 1) {
-      return;
-    }
+    // Solo corregir cobertura inferior (teclado). Si el campo quedó arriba
+    // porque el usuario hizo scroll, no pelear.
+    if (rect.bottom <= visibleBottom + 1) return;
+    if (visibleBottom <= vvTop + 24) return;
 
-    if (visibleBottom <= visibleTop + 24) return;
-
-    let delta = 0;
-    if (rect.bottom > visibleBottom) {
-      delta = rect.bottom - visibleBottom + 16;
-    } else if (rect.top < visibleTop) {
-      delta = rect.top - visibleTop - 16;
-    } else {
-      return;
-    }
-
-    if (Math.abs(delta) < 4) return;
+    const delta = rect.bottom - visibleBottom + 16;
+    if (delta < 4) return;
 
     if (scrollParent) {
       scrollParent.scrollTop += delta;
@@ -242,13 +229,13 @@ export function KeyboardFocusGuard() {
 
     const onViewportChange = () => {
       syncBarPosition();
-      // Solo reajustar si el campo queda tapado; no en cada scroll del visualViewport
+      // Solo si el teclado tapa el campo por abajo (no si el usuario scrolleó)
       if (active && document.activeElement === active) {
         const rect = active.getBoundingClientRect();
         const vv = window.visualViewport;
         const bottom =
           (vv?.offsetTop ?? 0) + (vv?.height ?? window.innerHeight) - KBD_ACCESSORY_H;
-        if (rect.bottom > bottom + 2 || rect.top < (vv?.offsetTop ?? 0) - 2) {
+        if (rect.bottom > bottom + 2) {
           scrollFieldIntoView(active);
         }
       }

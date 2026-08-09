@@ -8,7 +8,6 @@ import { AddMovieModal } from "@/components/movies/add-movie-modal";
 import { EditMovieDialog } from "@/components/movies/edit-movie-dialog";
 import { MovieCard } from "@/components/movies/movie-card";
 import { MovieSection } from "@/components/movies/movie-section";
-import { RecommendedMoviesSection } from "@/components/movies/recommended-movies-section";
 import { UpcomingMoviesSection } from "@/components/movies/upcoming-movies-section";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
@@ -233,12 +232,6 @@ export function MoviesLibraryView({
                 onLibraryChange={loadMovies}
                 limit={12}
               />
-              <RecommendedMoviesSection
-                userId={userId}
-                movies={movies}
-                onLibraryChange={loadMovies}
-                limit={12}
-              />
             </div>
           ) : (
             <div className="space-y-10">
@@ -254,12 +247,6 @@ export function MoviesLibraryView({
                 />
               )}
               <UpcomingMoviesSection
-                userId={userId}
-                movies={movies}
-                onLibraryChange={loadMovies}
-                limit={12}
-              />
-              <RecommendedMoviesSection
                 userId={userId}
                 movies={movies}
                 onLibraryChange={loadMovies}

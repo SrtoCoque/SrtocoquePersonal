@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { MetacriticBadge } from "@/components/games/metacritic-badge";
+import { GameScoreBadges } from "@/components/games/game-score-badges";
 import type { RawgGameResult } from "@/lib/types";
 
 function GameSummary({ text }: { text: string }) {
@@ -91,14 +91,13 @@ export function GameSearchPreview({
             {platforms}
           </p>
         ) : null}
-        {game.metacritic != null || game.rating ? (
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-            {game.metacritic != null ? (
-              <MetacriticBadge score={game.metacritic} size="sm" />
-            ) : null}
-            {game.rating ? `★ ${game.rating.toFixed(1)}` : null}
-          </div>
-        ) : null}
+        <GameScoreBadges
+          metacritic={game.metacritic}
+          communityRating={game.rating}
+          size="sm"
+          labeled
+          className="mt-2"
+        />
         {game.summary ? <GameSummary text={game.summary} /> : null}
         {onChangeGame ? (
           <button
