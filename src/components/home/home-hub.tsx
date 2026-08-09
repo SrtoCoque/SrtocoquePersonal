@@ -73,11 +73,13 @@ const SECTIONS = [
     description: "Horas de foco y bloques",
     icon: Timer,
     available: true,
-    image: "/home/productividad.jpg",
-    tint: "from-teal-950/90 via-teal-900/55 to-cyan-800/35",
+    image: "/home/productividad-rtve.jpg",
+    tint: "from-teal-950/80 via-teal-900/40 to-cyan-800/20",
     border: "border-teal-500/35 hover:border-teal-300/60",
     shadow: "hover:shadow-teal-900/30",
     iconBg: "bg-teal-400/25 text-teal-50",
+    imageClass:
+      "brightness-[0.72] contrast-[1.05] saturate-[0.85] group-hover:brightness-[0.78] group-hover:saturate-[0.95]",
   },
   {
     href: "/series",
@@ -97,7 +99,7 @@ const SECTIONS = [
     description: "Wishlist, leyendo y números",
     icon: BookMarked,
     available: true,
-    image: "/home/libros.jpg",
+    image: "/home/comics.jpg",
     tint: "from-violet-950/90 via-violet-800/55 to-purple-700/35",
     border: "border-violet-500/35 hover:border-violet-300/60",
     shadow: "hover:shadow-violet-900/30",
@@ -193,10 +195,17 @@ export function HomeHub({ email }: { email: string | null }) {
                   alt=""
                   fill
                   className={cn(
-                    "object-cover brightness-[0.5] contrast-[0.95] saturate-[0.35] transition-[transform,filter] duration-500",
-                    section.available &&
-                      "group-hover:scale-[1.04] group-hover:brightness-[0.48] group-hover:saturate-[0.45]",
-                    !section.available && "grayscale-[40%] brightness-[0.42]",
+                    "object-cover transition-[transform,filter] duration-500",
+                    "imageClass" in section && section.imageClass
+                      ? section.imageClass
+                      : cn(
+                          "brightness-[0.5] contrast-[0.95] saturate-[0.35]",
+                          section.available &&
+                            "group-hover:scale-[1.04] group-hover:brightness-[0.48] group-hover:saturate-[0.45]",
+                          !section.available &&
+                            "grayscale-[40%] brightness-[0.42]",
+                        ),
+                    section.available && "group-hover:scale-[1.04]",
                   )}
                   sizes="(max-width:640px) 50vw, 50vw"
                   priority={index < 4}
