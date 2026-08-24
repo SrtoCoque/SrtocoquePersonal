@@ -68,18 +68,6 @@ const SECTIONS = [
     iconBg: "bg-emerald-400/25 text-emerald-50",
   },
   {
-    href: "/deporte-2",
-    title: "Deporte 2",
-    description: "Plan, entrenos y progreso (openGym)",
-    icon: Dumbbell,
-    available: true,
-    image: "/home/deporte.jpg",
-    tint: "from-lime-950/90 via-green-800/55 to-emerald-700/35",
-    border: "border-lime-500/35 hover:border-lime-300/60",
-    shadow: "hover:shadow-lime-900/30",
-    iconBg: "bg-lime-400/25 text-lime-50",
-  },
-  {
     href: "/productividad",
     title: "Productividad",
     description: "Horas de foco y bloques",

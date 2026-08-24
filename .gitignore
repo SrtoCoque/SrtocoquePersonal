@@ -37,9 +37,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# vendored upstream checkout (adapted copy lives in src/opengym)
-.vendor-opengym
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
