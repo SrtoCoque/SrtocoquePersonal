@@ -905,29 +905,131 @@ h4.sec{
   letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;
 }
 
-/* --------------------------------------------------- desktop (≥1000px) --- */
+/* --------------------------------------------------- desktop / PC -------- */
+/* Fine pointer: hover feedback (phones mostly use :active only). */
+@media (hover: hover) and (pointer: fine) {
+  .iconbtn:hover{background:var(--surface-2)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.primary:hover{background:var(--acc-2);filter:none}
+  .btn.ghost:hover,.btn.plain:hover{background:var(--surface-2)}
+  .lrow.tap:hover{background:var(--surface-2)}
+  .item:hover{background:var(--surface-2)}
+  .chip:hover{background:var(--surface-2)}
+  .wday:hover{background:var(--surface-2)}
+  .today-row:hover{background:var(--surface-3)}
+  .tile.tappable:hover{background:var(--surface-2)}
+  .cal-d:hover{background:var(--surface-2)}
+  .helpbtn:hover{color:var(--label)}
+  .stp button:hover{background:var(--surface-3)}
+  .setrow .setgo:not(:disabled):hover{background:var(--surface-3)}
+  .bw-pm:hover{background:var(--surface-2)}
+  #tabbar button:hover{color:var(--label)}
+  #tabbar button.on:hover{color:var(--acc)}
+  #tabbar button.start:hover .cir{transform:scale(1.04)}
+  .seg button:hover{opacity:.75}
+}
+
 .cols{display:block}
-@media (min-width:1000px){
-  #app{max-width:1080px;padding-top:32px}
-  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-  .cols>*{min-width:0}
-  #app .list{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  #modal-root .list,.narrow .list{display:flex;flex-direction:column}
+
+/* Tablets / laptops pequeños */
+@media (min-width:768px){
+  #opengym-root{
+    min-height:100dvh;
+  }
+  #app{
+    max-width:720px;
+    padding:24px 28px calc(140px + var(--sab));
+  }
+  #opengym-root.resting #app{padding-bottom:calc(260px + var(--sab))}
   .narrow{max-width:640px;margin:0 auto}
-  .tiles{grid-template-columns:repeat(4,1fr)}
-  .cols .tiles{grid-template-columns:1fr 1fr}
   #tabbar{
-    left:50%;right:auto;bottom:16px;transform:translateX(-50%);width:520px;
+    left:50%;right:auto;bottom:18px;transform:translateX(-50%);
+    width:min(560px, calc(100vw - 40px));
     border:var(--hair) solid var(--sep-op);border-radius:var(--r-xl);
-    padding:7px 10px 9px;box-shadow:0 12px 40px -10px rgba(0,0,0,.5);
+    padding:8px 12px 10px;
+    box-shadow:0 12px 40px -10px rgba(0,0,0,.45);
   }
   #tabbar button.start{margin-top:-26px}
-  .sheet{left:50%;right:auto;margin-left:-320px;width:640px;border-radius:var(--r-xl) var(--r-xl) 0 0}
-  .center{width:340px}
-  #timer{left:50%;right:auto;margin-left:-260px;width:520px;bottom:112px}
-  /* 520px fits the clock, the bar and all three controls on one line again */
+  .sheet{
+    left:50%;right:auto;width:min(640px, calc(100vw - 48px));
+    margin-left:calc(min(640px, calc(100vw - 48px)) / -2);
+    border-radius:var(--r-xl) var(--r-xl) 0 0;
+  }
+  .center{width:min(360px, calc(100vw - 48px))}
+  #timer{
+    left:50%;right:auto;
+    width:min(560px, calc(100vw - 40px));
+    margin-left:calc(min(560px, calc(100vw - 40px)) / -2);
+    bottom:118px;
+  }
   #timer.rest{flex-direction:row;align-items:center;gap:14px}
   #timer.rest .head{flex:1;min-width:0}
+  .exmedia img{height:320px}
+  .tiles{grid-template-columns:repeat(4,1fr)}
+  /* Steppers and set rows breathe more on a wide mouse UI */
+  .stp{gap:10px}
+  .stp button{min-width:44px;min-height:44px}
+  .setrow{gap:12px}
+}
+
+/* Pantallas anchas (PC / monitores) */
+@media (min-width:1100px){
+  #app{
+    max-width:1080px;
+    padding-top:32px;
+    padding-left:32px;
+    padding-right:32px;
+  }
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .cols>*{min-width:0}
+  #app .list{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #modal-root .list,.narrow .list{display:flex;flex-direction:column}
+  .narrow{max-width:680px;margin:0 auto}
+  .cols .tiles{grid-template-columns:1fr 1fr}
   .exmedia img{height:380px}
   .hm-wrap{display:flex;flex-direction:column;align-items:center}
+
+  /* Barra lateral en escritorio: más cómoda con ratón que la barra inferior */
+  #opengym-root{
+    padding-left:108px;
+  }
+  #tabbar{
+    left:16px;right:auto;top:50%;bottom:auto;
+    transform:translateY(-50%);
+    width:76px;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:2px;
+    padding:14px 8px;
+    border:var(--hair) solid var(--sep-op);
+    border-radius:var(--r-xl);
+    border-top:var(--hair) solid var(--sep-op);
+    box-shadow:0 16px 48px -12px rgba(0,0,0,.55);
+  }
+  #tabbar button{
+    flex:none;
+    width:100%;
+    padding:10px 4px;
+    font-size:11px;
+  }
+  #tabbar button .icn{font-size:22px}
+  #tabbar button.start{
+    margin-top:6px;
+    margin-bottom:6px;
+  }
+  #tabbar button.start .cir{
+    width:48px;height:48px;
+  }
+  #tabbar button.start .cir .icn{font-size:22px}
+  #timer{
+    left:calc(50% + 54px);
+    width:min(560px, calc(100vw - 160px));
+    margin-left:calc(min(560px, calc(100vw - 160px)) / -2);
+    bottom:24px;
+  }
+  #app{
+    padding-bottom:48px;
+  }
+  #opengym-root.resting #app{padding-bottom:calc(140px + var(--sab))}
 }
